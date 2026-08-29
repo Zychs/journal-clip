@@ -24,20 +24,6 @@ No dashboard. No extra server. Close the window to end the session.
 
 ---
 
-## Compact widget (`zig build` → `zig-out\bin\journal-clip-widget.exe`)
-
-A 300×132 always-on-top pane. Native Win32, no Python in that process, no Tk.
-
-1. `zig build` builds it beside `journal-clip.exe`. `zig build widget` builds and runs it.
-2. Live mic level, straight off WinMM. Device is the one `change-input` picked.
-3. Record clicks, same as the UI: 1=30s, 2=60s, 3=90s, 4=120s. Wait a beat after the last click. Click again — or Space / Enter — to **stop and send early**.
-4. On stop it writes one temp wav and hands it to `journal-clip.exe --file`, which owns whisper, the 7B and the tape. The widget shreds the wav when that exe exits.
-5. Bottom line is the next **armed** alarm off `clip-alarms.jsonl`, re-read every 30s.
-
-Non-Windows targets skip the widget; `zig build` still produces `journal-clip.exe`.
-
----
-
 ## Transcription editor (separate goal)
 
 Double-click `Clip-edit.bat`. Not Record. No mic. No Whisper.
