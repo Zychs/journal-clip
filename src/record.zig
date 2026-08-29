@@ -3,9 +3,9 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-pub const HWAVEIN = *anyopaque;
+const HWAVEIN = *anyopaque;
 
-pub const WAVEFORMATEX = extern struct {
+const WAVEFORMATEX = extern struct {
     wFormatTag: u16,
     nChannels: u16,
     nSamplesPerSec: u32,
@@ -15,7 +15,7 @@ pub const WAVEFORMATEX = extern struct {
     cbSize: u16,
 };
 
-pub const WAVEHDR = extern struct {
+const WAVEHDR = extern struct {
     lpData: [*]u8,
     dwBufferLength: u32,
     dwBytesRecorded: u32,
@@ -36,7 +36,6 @@ pub extern "winmm" fn waveInOpen(
 ) callconv(.winapi) u32;
 
 pub extern "winmm" fn waveInPrepareHeader(hwi: HWAVEIN, pwh: *WAVEHDR, cbwh: u32) callconv(.winapi) u32;
-pub extern "winmm" fn waveInUnprepareHeader(hwi: HWAVEIN, pwh: *WAVEHDR, cbwh: u32) callconv(.winapi) u32;
 pub extern "winmm" fn waveInAddBuffer(hwi: HWAVEIN, pwh: *WAVEHDR, cbwh: u32) callconv(.winapi) u32;
 pub extern "winmm" fn waveInStart(hwi: HWAVEIN) callconv(.winapi) u32;
 pub extern "winmm" fn waveInStop(hwi: HWAVEIN) callconv(.winapi) u32;
@@ -44,7 +43,7 @@ pub extern "winmm" fn waveInReset(hwi: HWAVEIN) callconv(.winapi) u32;
 pub extern "winmm" fn waveInClose(hwi: HWAVEIN) callconv(.winapi) u32;
 pub extern "kernel32" fn Sleep(dwMilliseconds: u32) callconv(.winapi) void;
 
-pub fn writeWavHeader(writer: *std.Io.Writer, data_size: u32, sample_rate: u32, channels: u16, bits_per_sample: u16) !void {
+fn writeWavHeader(writer: *std.Io.Writer, data_size: u32, sample_rate: u32, channels: u16, bits_per_sample: u16) !void {
     try writer.writeAll("RIFF");
     try writer.writeInt(u32, data_size + 36, .little);
     try writer.writeAll("WAVEfmt ");
