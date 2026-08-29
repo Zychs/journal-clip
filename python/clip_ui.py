@@ -191,6 +191,10 @@ def load_intent_cues() -> str:
     return "\n".join(chunks)
 
 
+WINDOW_DEFAULT = (1680, 640)
+WINDOW_MIN = (700, 480)
+
+
 def ui_state_path() -> Path:
     env = os.environ.get("SESEFUS_CLIP_UI_STATE")
     if env:
@@ -221,15 +225,44 @@ def load_recent_dir(state: Path | None = None) -> Path | None:
 def save_recent_dir(folder: Path, state: Path | None = None) -> Path:
     p = state or ui_state_path()
     p.parent.mkdir(parents=True, exist_ok=True)
-    body: dict[str, Any] = {}
-    if p.is_file():
-        try:
-            prev = json.loads(p.read_text(encoding="utf-8"))
-            if isinstance(prev, dict):
-                body = prev
-        except (OSError, json.JSONDecodeError):
-            body = {}
+    body = _read_ui_state(p)
     body["last_dir"] = str(Path(folder).resolve())
+    p.write_text(json.dumps(body, indent=2) + "\n", encoding="utf-8")
+    return p
+
+
+def _read_ui_state(p: Path) -> dict[str, Any]:
+    if not p.is_file():
+        return {}
+    try:
+        prev = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return prev if isinstance(prev, dict) else {}
+
+
+def load_window_size(state: Path | None = None) -> tuple[int, int] | None:
+    """Last window size the user left behind, or None to use the default."""
+    raw = str(_read_ui_state(state or ui_state_path()).get("window_size") or "").strip()
+    if "x" not in raw:
+        return None
+    w_raw, _, h_raw = raw.partition("x")
+    try:
+        w, h = int(w_raw), int(h_raw)
+    except ValueError:
+        return None
+    if w < WINDOW_MIN[0] or h < WINDOW_MIN[1]:
+        return None
+    if w > 20000 or h > 20000:
+        return None
+    return w, h
+
+
+def save_window_size(size: tuple[int, int], state: Path | None = None) -> Path:
+    p = state or ui_state_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    body = _read_ui_state(p)
+    body["window_size"] = f"{int(size[0])}x{int(size[1])}"
     p.write_text(json.dumps(body, indent=2) + "\n", encoding="utf-8")
     return p
 
@@ -458,8 +491,9 @@ class ClipUi:
 
         self.root = tk.Tk()
         self.root.title("journal-clip")
-        self.root.geometry("820x640")
-        self.root.minsize(700, 480)
+        self._win_size = load_window_size() or WINDOW_DEFAULT
+        self.root.geometry("%dx%d" % self._win_size)
+        self.root.minsize(*WINDOW_MIN)
         style = ttk.Style(self.root)
         apply_look(self.root, style)
 
@@ -559,6 +593,7 @@ class ClipUi:
         self.tree.tag_configure("group", foreground=CYAN)
         self.tree.tag_configure("take", foreground=INK)
 
+        self.root.bind("<Configure>", self._on_root_configure)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.reload_devices()
         self.reload_ledger()
@@ -932,7 +967,23 @@ class ClipUi:
         self.record_btn.configure(state="normal", text="record   1–4 clicks")
         self.status.configure(text=status)
 
+    def _on_root_configure(self, event: Any) -> None:
+        """Track the last un-maximized size so on_close can persist it."""
+        if event.widget is not self.root:
+            return
+        try:
+            if self.root.state() != "normal":
+                return
+        except tk.TclError:
+            return
+        if event.width >= WINDOW_MIN[0] and event.height >= WINDOW_MIN[1]:
+            self._win_size = (event.width, event.height)
+
     def on_close(self) -> None:
+        try:
+            save_window_size(self._win_size)
+        except OSError:
+            pass
         if self._record_click_job is not None:
             try:
                 self.root.after_cancel(self._record_click_job)

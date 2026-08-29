@@ -6,6 +6,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const record = @import("record.zig");
 const shred = @import("shred.zig");
+const cfg = @import("cfg.zig");
 
 extern "kernel32" fn GetSystemTimeAsFileTime(lpSystemTimeAsFileTime: *u64) callconv(.winapi) void;
 
@@ -27,11 +28,6 @@ const Heavy = struct {
     out_dir: ?[]const u8 = null,
     transcript: ?[]const u8 = null,
     prompt_source: ?[]const u8 = null,
-};
-
-const FileCfg = struct {
-    out_dir: ?[]const u8 = null,
-    input_index: ?i64 = null,
 };
 
 fn usage() void {
@@ -126,34 +122,6 @@ fn forwardCtrl(allocator: std.mem.Allocator, io: std.Io, env: anytype, args: []c
     try spawnPython(io, argv.items);
 }
 
-fn readFileAlloc(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
-    const file = if (std.fs.path.isAbsolute(path))
-        try std.Io.Dir.openFileAbsolute(io, path, .{ .mode = .read_only })
-    else
-        try std.Io.Dir.cwd().openFile(io, path, .{ .mode = .read_only });
-    defer file.close(io);
-    var read_buf: [4096]u8 = undefined;
-    var reader = file.reader(io, &read_buf);
-    return try reader.interface.allocRemaining(allocator, .unlimited);
-}
-
-fn loadInputIndex(allocator: std.mem.Allocator, io: std.Io, env: anytype) u32 {
-    const path = blk: {
-        if (env.get("SESEFUS_CLIP_CONFIG")) |p| break :blk allocator.dupe(u8, p) catch return 0;
-        const home = env.get("USERPROFILE") orelse return 0;
-        break :blk std.fmt.allocPrint(allocator, "{s}\\.sesefus\\clip-config.json", .{home}) catch return 0;
-    };
-    defer allocator.free(path);
-    const data = readFileAlloc(allocator, io, path) catch return 0;
-    defer allocator.free(data);
-    const parsed = std.json.parseFromSlice(FileCfg, allocator, data, .{ .ignore_unknown_fields = true }) catch return 0;
-    defer parsed.deinit();
-    if (parsed.value.input_index) |i| {
-        if (i >= 0) return @intCast(i);
-    }
-    return 0;
-}
-
 fn writeJournal(allocator: std.mem.Allocator, io: std.Io, heavy: Heavy) ![]u8 {
     const out_dir = heavy.out_dir orelse return error.NoOutDir;
     const rel = heavy.dest_rel orelse return error.NoDest;
@@ -238,7 +206,7 @@ fn runClip(
     if (say == null and file_wav == null) {
         wav_path = try std.fmt.allocPrint(allocator, "{s}\\sesefus-clip-{d}.wav", .{ tmp_dir, stamp });
         own_wav = true;
-        const idx = loadInputIndex(allocator, io, env);
+        const idx = cfg.loadInputIndex(allocator, io, env);
         try record.recordAudio(wav_path.?, seconds, idx, allocator, io);
     }
 
@@ -278,7 +246,7 @@ fn runClip(
         }
     }
 
-    const raw = try readFileAlloc(allocator, io, out_json);
+    const raw = try cfg.readFileAlloc(allocator, io, out_json);
     defer allocator.free(raw);
     const parsed = try std.json.parseFromSlice(Heavy, allocator, raw, .{ .ignore_unknown_fields = true });
     defer parsed.deinit();
