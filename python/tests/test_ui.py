@@ -12,8 +12,10 @@ sys.path.insert(0, str(HERE))
 
 from clip_ui import (  # noqa: E402
     CLIP_BAT,
+    WINDOW_DEFAULT,
     is_silent,
     load_recent_dir,
+    load_window_size,
     parse_device_list,
     parse_seconds,
     peak_gain,
@@ -22,6 +24,7 @@ from clip_ui import (  # noqa: E402
     remaining_whole_seconds,
     rows_that_fit,
     save_recent_dir,
+    save_window_size,
     short_ledger_line,
     visible_ledger_rows,
     write_session_config,
@@ -126,6 +129,26 @@ class TestClipUi(unittest.TestCase):
             missing = Path(td) / "gone.json"
             missing.write_text('{"last_dir": "C:\\\\no-such-clip-dir-xyz"}', encoding="utf-8")
             self.assertIsNone(load_recent_dir(missing))
+
+    def test_window_size_roundtrip_keeps_last_dir(self):
+        with tempfile.TemporaryDirectory() as td:
+            folder = Path(td) / "journal"
+            folder.mkdir()
+            state = Path(td) / "clip-ui.json"
+            save_recent_dir(folder, state)
+            save_window_size((1680, 640), state)
+            self.assertEqual(load_window_size(state), (1680, 640))
+            self.assertEqual(load_recent_dir(state), folder.resolve())
+
+    def test_window_size_falls_back_when_absent_or_junk(self):
+        with tempfile.TemporaryDirectory() as td:
+            missing = Path(td) / "none.json"
+            self.assertIsNone(load_window_size(missing))
+            for raw in ('{"window_size": "wide"}', '{"window_size": "80x60"}', "[]"):
+                bad = Path(td) / "bad.json"
+                bad.write_text(raw, encoding="utf-8")
+                self.assertIsNone(load_window_size(bad), raw)
+            self.assertEqual(WINDOW_DEFAULT, (1680, 640))
 
     def test_silence_detect(self):
         self.assertTrue(is_silent(b""))
