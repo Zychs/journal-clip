@@ -1,0 +1,34 @@
+# Python caches and test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Python environments
+.venv/
+venv/
+
+# Zig build output
+.zig-cache/
+zig-out/
+
+# Local configuration and UI state
+clip-config.json
+clip-ui.json
+sesefus-clip-ui-*.json
+
+# Recorded or temporary audio
+*.wav
+*.wave
+*.pcm
+
+# Journal/tape/runtime output
+takes.jsonl
+transcriptions.csv
+ledger.csv
+
+# Local model or generated analysis output
+*.onnx
+*.bin
+*.gguf
