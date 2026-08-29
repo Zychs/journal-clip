@@ -36,6 +36,8 @@ SECONDS_PER_CLICK = 30
 MAX_RECORD_CLICKS = 4
 MAX_SECONDS = SECONDS_PER_CLICK * MAX_RECORD_CLICKS
 CLICK_WAIT_MS = 450
+FLIP_STEPS = 8
+FLIP_MS = 16
 
 sys.path.insert(0, str(HERE))
 from clip_config import list_input_devices, load_config  # noqa: E402
@@ -50,6 +52,7 @@ from clip_look import (  # noqa: E402
     LINE,
     VOID,
     apply as apply_look,
+    card,
     dot_button,
     ink_button,
     log_box,
@@ -172,6 +175,22 @@ def short_ledger_line(row: dict[str, str], max_chars: int = 48) -> str:
     if len(preview) > room:
         preview = preview[: max(0, room - 1)] + "…"
     return (head + preview).rstrip()
+
+
+def flip_width_scale(step: int, steps: int = FLIP_STEPS) -> float:
+    """Width scale for a squash flip. 1 at the ends, edge-on at the midpoint."""
+    steps = max(2, int(steps))
+    half = steps // 2
+    s = max(0, int(step))
+    if s <= 0 or s >= steps:
+        return 1.0
+    if s <= half:
+        return max(0.02, 1.0 - (s / half))
+    return max(0.02, (s - half) / half)
+
+
+def flip_swap_step(steps: int = FLIP_STEPS) -> int:
+    return max(1, int(steps) // 2)
 
 
 def load_intent_cues() -> str:
@@ -454,54 +473,66 @@ class ClipUi:
         self._profile = ".d"
         self._profile_btns: dict[str, Any] = {}
         self._intent_cues = load_intent_cues()
+        self._face_is_back = False
+        self._flipping = False
+        self._flip_step = 0
+        self._flip_dest_back = False
+        self._flip_job: str | int | None = None
         save_recent_dir(self.out_dir)
 
         self.root = tk.Tk()
         self.root.title("journal-clip")
-        self.root.geometry("820x640")
-        self.root.minsize(700, 480)
+        self.root.geometry("520x680")
+        self.root.minsize(420, 520)
         style = ttk.Style(self.root)
         apply_look(self.root, style)
 
         pad = ttk.Frame(self.root)
-        pad.pack(fill=tk.BOTH, expand=True, padx=22, pady=18)
+        pad.pack(fill=tk.BOTH, expand=True, padx=18, pady=16)
 
-        body = ttk.Frame(pad)
-        body.pack(fill=tk.BOTH, expand=True)
+        self.card = card(pad)
+        self.card.pack(fill=tk.BOTH, expand=True)
 
-        left = ttk.Frame(body)
-        left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        chrome = ttk.Frame(self.card)
+        chrome.pack(fill=tk.X, padx=14, pady=(12, 0))
+        self.mast = ttk.Label(chrome, text="⬡  journal-clip  /  this tower", style="Mast.TLabel")
+        self.mast.pack(side=tk.LEFT)
+        self.flip_btn = ink_button(chrome, "flip", self.on_flip)
+        self.flip_btn.pack(side=tk.RIGHT)
 
-        right = ttk.Frame(body, width=300)
-        right.pack(side=tk.RIGHT, fill=tk.Y, padx=(14, 0))
-        right.pack_propagate(False)
+        self.flip_host = ttk.Frame(self.card)
+        self.flip_host.pack(fill=tk.BOTH, expand=True, padx=14, pady=12)
 
-        ttk.Label(left, text="⬡  journal-clip  /  this tower", style="Mast.TLabel").pack(anchor="w")
-        ttk.Label(left, text="speak · plate · shred", style="Soft.TLabel").pack(anchor="w", pady=(6, 10))
+        front = ttk.Frame(self.flip_host)
+        back = ttk.Frame(self.flip_host)
+        self.face_front = front
+        self.face_back = back
 
-        dirrow = ttk.Frame(left)
+        ttk.Label(front, text="speak · plate · shred", style="Soft.TLabel").pack(anchor="w", pady=(0, 10))
+
+        dirrow = ttk.Frame(front)
         dirrow.pack(fill=tk.X, pady=(0, 8))
-        self.dir_label = ttk.Label(dirrow, text=str(self.out_dir), style="Mute.TLabel", wraplength=400)
+        self.dir_label = ttk.Label(dirrow, text=str(self.out_dir), style="Mute.TLabel", wraplength=420)
         self.dir_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
         ink_button(dirrow, "change", self.change_folder).pack(side=tk.RIGHT)
 
-        ttk.Label(left, text="input", style="Mute.TLabel").pack(anchor="w")
+        ttk.Label(front, text="input", style="Mute.TLabel").pack(anchor="w")
         self.device_var = tk.StringVar()
         self.combo = ttk.Combobox(
-            left, textvariable=self.device_var, state="readonly", width=62
+            front, textvariable=self.device_var, state="readonly", width=48
         )
         self.combo.pack(fill=tk.X, pady=(0, 4))
-        self.warn = ttk.Label(left, text="", style="Warn.TLabel")
+        self.warn = ttk.Label(front, text="", style="Warn.TLabel")
         self.warn.pack(anchor="w", pady=(0, 8))
 
         ttk.Label(
-            left,
+            front,
             text="record clicks  1=30s  2=60s  3=90s  4=120s   ·  stop sends early",
             style="Mute.TLabel",
         ).pack(anchor="w", pady=(0, 8))
 
         self.wave = tk.Canvas(
-            left,
+            front,
             height=72,
             bg=VOID,
             highlightthickness=1,
@@ -510,28 +541,29 @@ class ClipUi:
         self.wave.pack(fill=tk.X, pady=(0, 8))
 
         self.record_btn = ink_button(
-            left, "record   1–4 clicks", self.on_record_click, primary=True
+            front, "record   1–4 clicks", self.on_record_click, primary=True
         )
         self.record_btn.pack(fill=tk.X, pady=(0, 8))
 
-        self.status = ttk.Label(left, text="ready", style="Soft.TLabel")
+        self.status = ttk.Label(front, text="ready", style="Soft.TLabel")
         self.status.pack(anchor="w", pady=(0, 6))
 
-        ttk.Label(left, text="this take", style="Mute.TLabel").pack(anchor="w")
-        self.plate = plate(left, height=5)
+        ttk.Label(front, text="this take", style="Mute.TLabel").pack(anchor="w")
+        self.plate = plate(front, height=5)
         self.plate.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
         self.plate.insert("1.0", "take lands here.")
         self.plate.configure(state="disabled")
 
-        ttk.Label(left, text="log", style="Mute.TLabel").pack(anchor="w")
-        self.log = log_box(left, height=3)
+        ttk.Label(front, text="log", style="Mute.TLabel").pack(anchor="w")
+        self.log = log_box(front, height=3)
         self.log.pack(fill=tk.X)
         self.log.configure(state="disabled")
 
-        head = ttk.Frame(right)
+        head = ttk.Frame(back)
         head.pack(fill=tk.X)
         self.count_label = ttk.Label(head, text="0", style="Mast.TLabel")
         self.count_label.pack(side=tk.LEFT)
+        ttk.Label(head, text="  ledger", style="Mute.TLabel").pack(side=tk.LEFT, padx=(4, 0))
         dots = ttk.Frame(head)
         dots.pack(side=tk.RIGHT)
         for abbr, _pid in PROFILES:
@@ -541,7 +573,7 @@ class ClipUi:
 
         self._ledger_font = tkfont.Font(font=FONT_PLATE)
         self._ledger_line_h = int(self._ledger_font.metrics("linespace") or 16)
-        treeframe = ttk.Frame(right)
+        treeframe = ttk.Frame(back)
         treeframe.pack(fill=tk.BOTH, expand=True, pady=(6, 0))
         self.tree = ttk.Treeview(
             treeframe,
@@ -559,10 +591,57 @@ class ClipUi:
         self.tree.tag_configure("group", foreground=CYAN)
         self.tree.tag_configure("take", foreground=INK)
 
+        self._apply_face(1.0)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.reload_devices()
         self.reload_ledger()
         self.root.after(50, self._pump)
+
+    def on_flip(self) -> None:
+        self.flip(animate=True)
+
+    def flip(self, *, animate: bool = True) -> None:
+        if self._flipping:
+            return
+        nxt = not self._face_is_back
+        if not animate:
+            self._face_is_back = nxt
+            self._apply_face(1.0)
+            return
+        self._flipping = True
+        self._flip_step = 0
+        self._flip_dest_back = nxt
+        self._tick_flip()
+
+    def _tick_flip(self) -> None:
+        step = self._flip_step
+        steps = FLIP_STEPS
+        if step == flip_swap_step(steps):
+            self._face_is_back = self._flip_dest_back
+        self._apply_face(flip_width_scale(step, steps))
+        if step >= steps:
+            self._flipping = False
+            self._flip_job = None
+            self._apply_face(1.0)
+            return
+        self._flip_step = step + 1
+        self._flip_job = self.root.after(FLIP_MS, self._tick_flip)
+
+    def _apply_face(self, scale: float) -> None:
+        show = self.face_back if self._face_is_back else self.face_front
+        hide = self.face_front if self._face_is_back else self.face_back
+        hide.place_forget()
+        show.place(
+            relx=0.5,
+            rely=0,
+            relwidth=max(0.02, float(scale)),
+            relheight=1.0,
+            anchor="n",
+        )
+        if self._face_is_back:
+            self.mast.configure(text="⬡  journal-clip  /  ledger")
+        else:
+            self.mast.configure(text="⬡  journal-clip  /  this tower")
 
     def append_log(self, text: str) -> None:
         self.log.configure(state="normal")
@@ -933,6 +1012,12 @@ class ClipUi:
         self.status.configure(text=status)
 
     def on_close(self) -> None:
+        if self._flip_job is not None:
+            try:
+                self.root.after_cancel(self._flip_job)
+            except Exception:
+                pass
+            self._flip_job = None
         if self._record_click_job is not None:
             try:
                 self.root.after_cancel(self._record_click_job)

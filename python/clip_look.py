@@ -123,6 +123,19 @@ def dot_button(parent: Any, text: str, command: Callable[[], None], *, active: b
     )
 
 
+def card(parent: Any) -> Any:
+    """One bordered face. House void, not a second window."""
+    import tkinter as tk
+
+    return tk.Frame(
+        parent,
+        bg=BG,
+        highlightthickness=1,
+        highlightbackground=LINE,
+        highlightcolor=CYAN,
+    )
+
+
 def ink_button(parent: Any, text: str, command: Callable[[], None], *, primary: bool = False) -> Any:
     import tkinter as tk
 

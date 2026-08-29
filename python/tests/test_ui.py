@@ -12,6 +12,8 @@ sys.path.insert(0, str(HERE))
 
 from clip_ui import (  # noqa: E402
     CLIP_BAT,
+    flip_swap_step,
+    flip_width_scale,
     is_silent,
     load_recent_dir,
     parse_device_list,
@@ -157,6 +159,14 @@ class TestClipUi(unittest.TestCase):
         self.assertNotIn("dump", line)
         self.assertLessEqual(len(line), 28)
 
+    def test_flip_scale_is_edge_on_at_midpoint(self):
+        self.assertEqual(flip_width_scale(0, 8), 1.0)
+        self.assertEqual(flip_width_scale(8, 8), 1.0)
+        self.assertLessEqual(flip_width_scale(4, 8), 0.02)
+        self.assertEqual(flip_swap_step(8), 4)
+        self.assertGreater(flip_width_scale(2, 8), flip_width_scale(4, 8))
+        self.assertGreater(flip_width_scale(6, 8), flip_width_scale(4, 8))
+
     def test_clip_ui_constructs_tape_tree(self):
         import os
         import tkinter as tk
@@ -180,9 +190,20 @@ class TestClipUi(unittest.TestCase):
                 ui.root.update_idletasks()
                 self.assertTrue(ui.tree.winfo_exists())
                 self.assertEqual(ui.count_label.cget("text"), "1")
+                self.assertFalse(ui._face_is_back)
+                self.assertAlmostEqual(float(ui.face_front.place_info().get("relwidth") or 0), 1.0)
+                ui.flip(animate=False)
+                ui.root.update_idletasks()
+                self.assertTrue(ui._face_is_back)
+                self.assertAlmostEqual(float(ui.face_back.place_info().get("relwidth") or 0), 1.0)
+                self.assertFalse(ui.face_front.place_info())
+                self.assertIn("ledger", ui.mast.cget("text"))
                 ui.set_profile(".i")
                 ui.root.update_idletasks()
                 self.assertEqual(ui._profile, ".i")
+                ui.flip(animate=False)
+                ui.root.update_idletasks()
+                self.assertFalse(ui._face_is_back)
             finally:
                 ui.root.destroy()
 
