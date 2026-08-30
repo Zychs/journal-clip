@@ -33,6 +33,22 @@ No silent semver scheme beyond the `VERSION` file (`0.2.0`). Stay on
   green-gold palette meets this repo's negentropic-blue.
 
 ### Added
+- **The hand** — `Clip-hand.bat` and `python\clip_hand.py`. One window holding
+  `record | alarm | controls`, each card two-faced. Tabs pick the card, `flip`
+  (or `f`) turns the one showing; `1`/`2`/`3` and `ctrl+tab` walk the hand.
+  Cards are built on first pick, not at startup.
+- **The controls card** — `python\clip_controls.py`, front storage ⟷ back
+  prompt-out, from `design\canvas\Controls.dc.html`. Every figure is read
+  through `clip_store.systems_status`; the retention toggle, `verify audio`,
+  `stale n` and `rebuild view` all act for real.
+- `master=None` on every card class: pass a frame and the card mounts into a
+  hand, pass nothing and it opens its own window. `Clip-ui.bat` and
+  `Circadia.bat` are unchanged in behaviour.
+- `shutdown()` on every card — stop timers and captures without destroying a
+  window the card does not own. The hand calls it for each card it built.
+- Tests: `python\tests\test_hand.py` (16) — tab order, the controls readouts,
+  one window holding three cards, and that a card with no master still owns
+  its window.
 - Flattened repo root (2026-08-30). Written `HISTORY.md`.
 - The three data products, each its own append-only store: `python\clip_audio.py`
   (sha256 manifest, read-only clips, `OverwriteRefused`),
@@ -63,8 +79,10 @@ No silent semver scheme beyond the `VERSION` file (`0.2.0`). Stay on
 
 ### Verified 2026-08-30
 - `zig build` clean on zig 0.16.0.
-- 110 python tests pass — 39 in `test_alarm.py` (pytest), 71 across the seven
+- 126 python tests pass — 39 in `test_alarm.py` (pytest), 87 across the eight
   unittest files.
+- The hand was run and all three cards captured: record, ledger (back), alarm,
+  controls · storage, controls · prompt-out. Not just constructed in a test.
 
 ## [0.2.0] — 2026-08-29 (reconstructed)
 

@@ -6,6 +6,17 @@ Repo root flattened here 2026-08-30 from `apps\journal-clip`. History commits ar
 
 ## Waves
 
+### 2026-08-30 · the hand
+- `Clip-hand.bat` + `python\clip_hand.py`: one window, `record | alarm |
+  controls`. Three windows became three tabs.
+- The controls card built from `Controls.dc.html` — storage ⟷ prompt-out, all
+  figures read live from the three stores.
+- Every card class grew `master=None` and `shutdown()`, so the same class opens
+  alone or mounts into the hand. No card was forked to do this.
+- Ran, not only tested: all three cards and both controls faces captured.
+- Still open: circadia A vs B, and the two borrowed cards that would take the
+  hand from three to five.
+
 ### 2026-08-30 · three products, the circadia card, and the hand canvas
 - The pipeline split into three append-only stores with three preservation
   rules — `clip_audio.py`, `clip_transcript.py`, `clip_semantics.py`.

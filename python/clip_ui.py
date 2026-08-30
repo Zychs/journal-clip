@@ -448,7 +448,14 @@ class WinmmCapture:
 
 
 class ClipUi:
-    def __init__(self, out_dir: Path) -> None:
+    """The record card. Front records, back is the ledger.
+
+    `master` is how this card joins a hand: pass a frame and the card mounts
+    into it, leaving the window, the look and the close protocol to the host.
+    Pass nothing and it opens its own window, as `Clip-ui.bat` does.
+    """
+
+    def __init__(self, out_dir: Path, master: Any = None) -> None:
         import tkinter as tk
         from tkinter import font as tkfont
         from tkinter import ttk
@@ -480,24 +487,35 @@ class ClipUi:
         self._flip_step = 0
         self._flip_dest_back = False
         self._flip_job: str | int | None = None
+        self._closing = False
+        self.owns_root = master is None
         save_recent_dir(self.out_dir)
 
-        self.root = tk.Tk()
-        self.root.title("journal-clip")
-        self.root.geometry("520x680")
-        self.root.minsize(420, 520)
-        style = ttk.Style(self.root)
-        apply_look(self.root, style)
-
-        pad = ttk.Frame(self.root)
-        pad.pack(fill=tk.BOTH, expand=True, padx=18, pady=16)
+        if master is None:
+            self.root = tk.Tk()
+            self.root.title("journal-clip")
+            self.root.geometry("520x680")
+            self.root.minsize(420, 520)
+            style = ttk.Style(self.root)
+            apply_look(self.root, style)
+            pad = ttk.Frame(self.root)
+            pad.pack(fill=tk.BOTH, expand=True, padx=18, pady=16)
+        else:
+            self.root = master.winfo_toplevel()
+            pad = ttk.Frame(master)
+            pad.pack(fill=tk.BOTH, expand=True)
 
         self.card = card(pad)
         self.card.pack(fill=tk.BOTH, expand=True)
 
+        # In a hand the host strip already says journal-clip; repeating it on
+        # every card just doubles the word. Alone, the card is the window and
+        # has to name itself.
+        self._mast_prefix = "⬡  journal-clip  /  " if self.owns_root else ""
+
         chrome = ttk.Frame(self.card)
         chrome.pack(fill=tk.X, padx=14, pady=(12, 0))
-        self.mast = ttk.Label(chrome, text="⬡  journal-clip  /  this tower", style="Mast.TLabel")
+        self.mast = ttk.Label(chrome, text=f"{self._mast_prefix}this tower", style="Mast.TLabel")
         self.mast.pack(side=tk.LEFT)
         self.flip_btn = ink_button(chrome, "flip", self.on_flip)
         self.flip_btn.pack(side=tk.RIGHT)
@@ -594,7 +612,8 @@ class ClipUi:
         self.tree.tag_configure("take", foreground=INK)
 
         self._apply_face(1.0)
-        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+        if self.owns_root:
+            self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.reload_devices()
         self.reload_ledger()
         self.root.after(50, self._pump)
@@ -640,10 +659,8 @@ class ClipUi:
             relheight=1.0,
             anchor="n",
         )
-        if self._face_is_back:
-            self.mast.configure(text="⬡  journal-clip  /  ledger")
-        else:
-            self.mast.configure(text="⬡  journal-clip  /  this tower")
+        face = "ledger" if self._face_is_back else "this tower"
+        self.mast.configure(text=f"{self._mast_prefix}{face}")
 
     def append_log(self, text: str) -> None:
         self.log.configure(state="normal")
@@ -654,6 +671,8 @@ class ClipUi:
         self.log.configure(state="disabled")
 
     def _pump(self) -> None:
+        if self._closing:
+            return
         try:
             while True:
                 self.append_log(self.log_q.get_nowait())
@@ -1017,18 +1036,21 @@ class ClipUi:
         self.record_btn.configure(state="normal", text="record   1–4 clicks")
         self.status.configure(text=status)
 
-    def on_close(self) -> None:
-        if self._flip_job is not None:
-            try:
-                self.root.after_cancel(self._flip_job)
-            except Exception:
-                pass
-            self._flip_job = None
-        if self._record_click_job is not None:
-            try:
-                self.root.after_cancel(self._record_click_job)
-            except Exception:
-                pass
+    def shutdown(self) -> None:
+        """Stop this card's timers and capture. Does not touch the window.
+
+        The hand calls this for every card it holds; `on_close` calls it and
+        then destroys the window it owns.
+        """
+        self._closing = True
+        for job in (self._flip_job, self._record_click_job):
+            if job is not None:
+                try:
+                    self.root.after_cancel(job)
+                except Exception:
+                    pass
+        self._flip_job = None
+        self._record_click_job = None
         if self.capture is not None:
             self.capture.stop()
         if not self.busy:
@@ -1037,6 +1059,9 @@ class ClipUi:
                     self.session_cfg.unlink()
             except OSError:
                 pass
+
+    def on_close(self) -> None:
+        self.shutdown()
         self.root.destroy()
 
     def run(self) -> None:

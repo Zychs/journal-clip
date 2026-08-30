@@ -79,7 +79,38 @@ Clip.bat change-audio archive
 
 ---
 
-## UI (launcher over Clip.bat)
+## One window — `Clip-hand.bat`
+
+Double-click `Clip-hand.bat`. One window, every card.
+
+```
+record  |  alarm  |  controls
+```
+
+Three cards, each two-faced. The tab strip picks the card; **flip** turns the
+card that is showing.
+
+| Card | Front | Back |
+| --- | --- | --- |
+| **record** | record — mic, waveform, plate | ledger — count, groups, profiles |
+| **alarm** | add — title, when, do | edit — find one row, patch it |
+| **controls** | storage — the three products, retention | prompt-out — models, prompts, per-kind |
+
+Keys: `1` `2` `3` pick a card, `ctrl+tab` walks the hand, `f` flips the card
+you are on. Keys stay out of the way while you are typing in a field.
+
+Cards are built the first time you pick their tab, not at startup — the record
+card opens a capture device list and the alarm card starts a clock, and neither
+should happen because you wanted the other one.
+
+The single-card launchers still work and still open exactly one card in its own
+window: `Clip-ui.bat` (record), `Circadia.bat` (alarm),
+`python python\clip_controls.py` (controls). Same classes, same code — a card
+just takes a parent frame when it joins a hand.
+
+---
+
+## The record card on its own (`Clip-ui.bat`)
 
 Double-click `Clip-ui.bat`. Same folder as `Clip.bat`.
 
@@ -106,30 +137,42 @@ It is file + process, with no port; a `hop` still opens `Clip-ui.bat`.
 
 ---
 
-## The card hand (design, not yet built)
+## The card hand
 
 Every window here is a **card**: one bordered face on house void, and a
 two-faced card turns over with the same 8-step horizontal squash — defined once
 in `clip_ui.py` (`flip_width_scale`, 16 ms a step, faces swap at the midpoint)
 and imported by everything else.
 
-`design\canvas\` is the canvas for the intended **hand** — artboards as
-`.dc.html`, laid out by `canvas.json`, annotations carrying the open questions.
+`design\canvas\` is the canvas the hand is drawn from — artboards as `.dc.html`,
+laid out by `canvas.json`, annotations carrying the open questions.
 
 | Artboard | Card | State |
 | --- | --- | --- |
 | `Record.dc.html` | record ⟷ ledger | **built** — `python\clip_ui.py` |
+| `Controls.dc.html` | storage ⟷ prompt-out | **built** — `python\clip_controls.py` |
+| — | alarm, add ⟷ edit | **built** — `python\clip_circadia.py` |
 | `Main.dc.html` | circadia A · the dial | designed |
 | `CircadiaB.dc.html` | circadia B · the composer | designed |
-| `Controls.dc.html` | storage ⟷ prompt-out | designed |
 | `Cabinet.dc.html` | filing cabinet, three drawers | designed |
 
-Two decisions are open on that canvas and neither has been made:
+The hand host is `python\clip_hand.py`, opened by `Clip-hand.bat`. A card joins
+a hand by being handed a parent frame (`master=`); with no parent it opens its
+own window, which is what the single-card launchers do.
+
+Every number on the controls card is read from the three stores through
+`clip_store.systems_status`. Nothing on that card is invented: an empty store
+reports as empty, and `verify audio` says `n damaged` or nothing at all. The
+model rows name where a model **runs**, not whether it answered — the card does
+not probe, so it must not claim `up`.
+
+Two decisions are open on the canvas and neither has been made:
 
 - **Circadia A or B.** Both drop the permanent server rail that
   `clip_circadia.py` has today and move it to the back face. A is the dial
   (quiet, closest to what exists); B is the composer (denser, faster once
-  learned). The `pick-a-circadia` annotation says pick one.
+  learned). The `pick-a-circadia` annotation says pick one. Until then the
+  alarm card in the hand is the existing add ⟷ edit card, rail and all.
 - **The last two cards of a five-card hand.** The intended fill is the
   *archival view* and *aytree*, both borrowed from Artifact Scanner at
   `C:\Users\bardw\artifact-scanner` (`archive_bay.py` + `experimental\archive\`

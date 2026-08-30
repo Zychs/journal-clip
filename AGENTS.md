@@ -82,14 +82,16 @@ python\clip_store.py    the flat projection + migration + status
 python\clip_heavy.py    whisper → embed → cosine kind → optional 7B
 python\clip_group.py    ledger grouping profiles (.d .i .n .g .m)
 python\clip_look.py     negentropic-blue tokens; every tk window imports these
+python\clip_hand.py     the hand — one window holding every card
 python\clip_ui.py       the record card (front record ⟷ back ledger) + flip
+python\clip_controls.py the controls card (front storage ⟷ back prompt-out)
 python\clip_edit_ui.py  transcription editor — no mic, no whisper
 python\clip_circadia.py the circadia card — add ⟷ edit, right rail
 python\clip_alarm.py    alarm store, daemon, hop fire
 ```
 
-Launchers: `Clip.bat` (build + record + controls + `alarm`), `Clip-ui.bat`,
-`Clip-edit.bat`, `Circadia.bat`.
+Launchers: `Clip.bat` (build + record + controls + `alarm`), **`Clip-hand.bat`**
+(one window, every card), `Clip-ui.bat`, `Clip-edit.bat`, `Circadia.bat`.
 
 ---
 
@@ -107,6 +109,31 @@ from ad-hoc colours.
 - Palette is **negentropic-blue** (`BG #050509`, `CYAN #7cf7ff`, `LINE #272739`,
   `AMBER #e2a24a`, `GOOD #4CAE7C`). Not Matrix green, not board cyan.
 
+### A card joins a hand
+
+Every card class takes `master=None`. That is the whole contract:
+
+```python
+ClipUi(out_dir)                 # its own window - Clip-ui.bat
+ClipUi(out_dir, master=frame)   # mounted in a hand - clip_hand.py
+```
+
+With a parent, the card mounts into it and the **window, the look, the close
+protocol and the keyboard belong to the host**. It must not call `tk.Tk()`,
+`apply_look`, `protocol`, or bind on the root. A card exposes:
+
+- `flip(animate=True)` — same name and signature on every card, so the hand
+  can turn whichever one is showing without knowing which it is.
+- `shutdown()` — cancel timers and captures, do **not** destroy a window it
+  does not own. `on_close()` is `shutdown()` plus a destroy, and only a card
+  that owns its root wires it to `WM_DELETE_WINDOW`.
+- `refresh()` — optional; the hand calls it when the card comes to the front,
+  so a card reading from disk sees what another card just wrote.
+
+When adding a card: give it a tab in `CARDS`, a design width in `CARD_WIDTH`,
+and a branch in `Hand._build`. A card is centred at its design width, never
+stretched across the window.
+
 `design\canvas\` holds the design canvas for the card hand — artboards as
 `.dc.html`, laid out by `canvas.json`, with the annotations that state the
 open questions. `design\circadia-card.html` is the static twin opened by
@@ -114,6 +141,14 @@ open questions. `design\circadia-card.html` is the static twin opened by
 
 Open on the canvas today: **Circadia A (dial) vs B (composer)** — the canvas
 annotation `pick-a-circadia` says pick one, and nothing has picked yet.
+
+### A card does not invent a number
+
+The controls card reads every figure through `clip_store.systems_status`. An
+empty store reports empty, not healthy. `verify audio` reports a damage count
+or nothing. The model rows say where a model **runs** (`local` / `ollama`),
+never `up` — that card does not probe, so it may not claim reachability. If you
+add a readout, source it or leave it out.
 
 ---
 
@@ -140,8 +175,13 @@ If pytest dies with `PermissionError [WinError 5]` on
 `%LOCALAPPDATA%\Temp\pytest-of-bardw`, that is the shared temp dir, not the
 code — pass `--basetemp` at a writable path.
 
-As of 2026-08-30: 110 tests pass (39 alarm + 71 across the rest), `zig build`
+As of 2026-08-30: 126 tests pass (39 alarm + 87 across the rest), `zig build`
 clean.
+
+The tk tests build real windows and skip themselves when there is no display.
+A flip driven by `root.after` will not land under `update()` in a tight loop —
+the timers never get a turn. Use `flip(animate=False)` in a test, or wait on
+`_flipping` with a deadline the way `test_circadia.py` does.
 
 ---
 

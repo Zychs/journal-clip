@@ -125,7 +125,13 @@ def store_stamp(path: Path | None = None) -> str:
 
 
 class CircadiaCard:
-    def __init__(self) -> None:
+    """The alarm card. Left face flips add ⟷ edit; the rail keeps time.
+
+    `master` mounts this card into a hand instead of its own window — see
+    `ClipUi` for the same contract.
+    """
+
+    def __init__(self, master: Any = None) -> None:
         import tkinter as tk
         from tkinter import ttk
 
@@ -135,12 +141,18 @@ class CircadiaCard:
         self._flip_step = 0
         self._flip_dest_back = False
         self._flip_job: str | int | None = None
+        self._rail_job: str | int | None = None
+        self._closing = False
         self._msg = ""
+        self.owns_root = master is None
 
-        self.root = tk.Tk()
-        self.root.title("journal-clip · circadia")
-        self.root.geometry("%dx%d" % WINDOW)
-        self.root.minsize(*WINDOW_MIN)
+        if master is None:
+            self.root = tk.Tk()
+            self.root.title("journal-clip · circadia")
+            self.root.geometry("%dx%d" % WINDOW)
+            self.root.minsize(*WINDOW_MIN)
+        else:
+            self.root = master.winfo_toplevel()
         style = ttk.Style(self.root)
         apply_look(self.root, style)
         style.configure(
@@ -168,10 +180,12 @@ class CircadiaCard:
         )
         style.map("TSpinbox", fieldbackground=[("focus", VOID)], foreground=[("focus", INK)])
 
-        pad = ttk.Frame(self.root)
-        pad.pack(fill=tk.BOTH, expand=True, padx=18, pady=14)
+        pad = ttk.Frame(self.root if master is None else master)
+        pad.pack(fill=tk.BOTH, expand=True, padx=(18 if master is None else 0), pady=(14 if master is None else 0))
 
-        ttk.Label(pad, text="⬡  journal-clip  /  circadia card", style="Mast.TLabel").pack(anchor="w")
+        if self.owns_root:
+            # in a hand the host strip already carries this line
+            ttk.Label(pad, text="⬡  journal-clip  /  circadia card", style="Mast.TLabel").pack(anchor="w")
         ttk.Label(pad, text="Time fires. Then you speak.", style="Soft.TLabel").pack(anchor="w", pady=(6, 4))
         ttk.Label(
             pad,
@@ -213,10 +227,13 @@ class CircadiaCard:
         self.warn = ttk.Label(pad, text="", style="Warn.TLabel")
         self.warn.pack(anchor="w", pady=(8, 0))
 
-        self.root.bind("<Key-f>", self._on_f)
-        self.root.bind("<Key-F>", self._on_f)
+        if self.owns_root:
+            # In a hand the host owns the keyboard; f there would flip whichever
+            # card happens to be showing, which is the host's call, not ours.
+            self.root.bind("<Key-f>", self._on_f)
+            self.root.bind("<Key-F>", self._on_f)
         self.root.after(80, self.refresh_rail)
-        self.root.after(2000, self._tick_rail)
+        self._rail_job = self.root.after(2000, self._tick_rail)
 
     def _entry(self, parent: Any, label: str, hint: str = "") -> Any:
         """Label + field. A hint line only when one is asked for."""
@@ -579,8 +596,22 @@ class CircadiaCard:
             self.say("hop failed — Clip-ui.bat not found", warn=True)
 
     def _tick_rail(self) -> None:
+        if self._closing:
+            return
         self.refresh_rail()
-        self.root.after(2000, self._tick_rail)
+        self._rail_job = self.root.after(2000, self._tick_rail)
+
+    def shutdown(self) -> None:
+        """Stop the rail clock and the flip. Does not touch the window."""
+        self._closing = True
+        for job in (self._flip_job, self._rail_job):
+            if job is not None:
+                try:
+                    self.root.after_cancel(job)
+                except Exception:
+                    pass
+        self._flip_job = None
+        self._rail_job = None
 
     def _on_f(self, evt: Any) -> None:
         w = evt.widget
@@ -590,11 +621,20 @@ class CircadiaCard:
         self.on_flip()
 
     def on_flip(self) -> None:
+        self.flip(animate=True)
+
+    def flip(self, *, animate: bool = True) -> None:
+        """Same name and signature as ClipUi.flip, so a hand can call either."""
         if self._flipping:
+            return
+        nxt = not self._face_is_back
+        if not animate:
+            self._face_is_back = nxt
+            self._apply_face(1.0)
             return
         self._flipping = True
         self._flip_step = 0
-        self._flip_dest_back = not self._face_is_back
+        self._flip_dest_back = nxt
         self._tick_flip()
 
     def _tick_flip(self) -> None:
