@@ -597,6 +597,7 @@ class ClipUi:
         body.pack(fill=tk.BOTH, expand=True)
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         left = ttk.Frame(body)
         left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 =======
@@ -611,37 +612,42 @@ class ClipUi:
         self._docked = load_docked()
         self._sync_dock_chrome()
 >>>>>>> Stashed changes
+=======
+        # Two cards. The tape reads on the far side of the input it came from.
+        tape = ttk.Frame(body, width=300)
+        tape.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 14))
+        tape.pack_propagate(False)
+>>>>>>> Stashed changes
 
-        right = ttk.Frame(body, width=300)
-        right.pack(side=tk.RIGHT, fill=tk.Y, padx=(14, 0))
-        right.pack_propagate(False)
+        stage = ttk.Frame(body)
+        stage.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
-        ttk.Label(left, text="⬡  journal-clip  /  this tower", style="Mast.TLabel").pack(anchor="w")
-        ttk.Label(left, text="speak · plate · shred", style="Soft.TLabel").pack(anchor="w", pady=(6, 10))
+        ttk.Label(stage, text="⬡  journal-clip  /  this tower", style="Mast.TLabel").pack(anchor="w")
+        ttk.Label(stage, text="speak · plate · shred", style="Soft.TLabel").pack(anchor="w", pady=(6, 10))
 
-        dirrow = ttk.Frame(left)
+        dirrow = ttk.Frame(stage)
         dirrow.pack(fill=tk.X, pady=(0, 8))
         self.dir_label = ttk.Label(dirrow, text=str(self.out_dir), style="Mute.TLabel", wraplength=400)
         self.dir_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
         ink_button(dirrow, "change", self.change_folder).pack(side=tk.RIGHT)
 
-        ttk.Label(left, text="input", style="Mute.TLabel").pack(anchor="w")
+        ttk.Label(stage, text="input", style="Mute.TLabel").pack(anchor="w")
         self.device_var = tk.StringVar()
         self.combo = ttk.Combobox(
-            left, textvariable=self.device_var, state="readonly", width=62
+            stage, textvariable=self.device_var, state="readonly", width=62
         )
         self.combo.pack(fill=tk.X, pady=(0, 4))
-        self.warn = ttk.Label(left, text="", style="Warn.TLabel")
+        self.warn = ttk.Label(stage, text="", style="Warn.TLabel")
         self.warn.pack(anchor="w", pady=(0, 8))
 
         ttk.Label(
-            left,
+            stage,
             text="record clicks  1=30s  2=60s  3=90s  4=120s   ·  stop sends early",
             style="Mute.TLabel",
         ).pack(anchor="w", pady=(0, 8))
 
         self.wave = tk.Canvas(
-            left,
+            stage,
             height=72,
             bg=VOID,
             highlightthickness=1,
@@ -650,25 +656,25 @@ class ClipUi:
         self.wave.pack(fill=tk.X, pady=(0, 8))
 
         self.record_btn = ink_button(
-            left, "record   1–4 clicks", self.on_record_click, primary=True
+            stage, "record   1–4 clicks", self.on_record_click, primary=True
         )
         self.record_btn.pack(fill=tk.X, pady=(0, 8))
 
-        self.status = ttk.Label(left, text="ready", style="Soft.TLabel")
+        self.status = ttk.Label(stage, text="ready", style="Soft.TLabel")
         self.status.pack(anchor="w", pady=(0, 6))
 
-        ttk.Label(left, text="this take", style="Mute.TLabel").pack(anchor="w")
-        self.plate = plate(left, height=5)
+        ttk.Label(stage, text="this take", style="Mute.TLabel").pack(anchor="w")
+        self.plate = plate(stage, height=5)
         self.plate.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
         self.plate.insert("1.0", "take lands here.")
         self.plate.configure(state="disabled")
 
-        ttk.Label(left, text="log", style="Mute.TLabel").pack(anchor="w")
-        self.log = log_box(left, height=3)
+        ttk.Label(stage, text="log", style="Mute.TLabel").pack(anchor="w")
+        self.log = log_box(stage, height=3)
         self.log.pack(fill=tk.X)
         self.log.configure(state="disabled")
 
-        head = ttk.Frame(right)
+        head = ttk.Frame(tape)
         head.pack(fill=tk.X)
         self.count_label = ttk.Label(head, text="0", style="Mast.TLabel")
         self.count_label.pack(side=tk.LEFT)
@@ -681,7 +687,7 @@ class ClipUi:
 
         self._ledger_font = tkfont.Font(font=FONT_PLATE)
         self._ledger_line_h = int(self._ledger_font.metrics("linespace") or 16)
-        treeframe = ttk.Frame(right)
+        treeframe = ttk.Frame(tape)
         treeframe.pack(fill=tk.BOTH, expand=True, pady=(6, 0))
         self.tree = ttk.Treeview(
             treeframe,
