@@ -1,5 +1,7 @@
 # journal-clip — what this is
 
+This folder is the git root (flattened 2026-08-30). Not nested under `apps\`.
+
 A **small** Sesefus command. Not the host. Not Circadia. Not the dashboard.
 
 You speak. It keeps **text**. It destroys the **wav**.
@@ -21,6 +23,17 @@ Double-click `Clip-ui.bat`. Same folder as `Clip.bat`.
 7. Temp wav is shredded after the take.
 
 No dashboard. No extra server. Close the window to end the session.
+
+---
+
+## Circadia alarm card (prototype)
+
+Double-click `Circadia.bat`. The left card flips between **add** and **edit**;
+the right rail is the local timekeeper and never flips. Alarm state is kept in
+`%USERPROFILE%\\.sesefus\\clip-alarms.jsonl` through `python\\clip_alarm.py`.
+It is file + process, with no port; a `hop` still opens `Clip-ui.bat`.
+
+`Circadia.bat design` opens the static twin at `design\\circadia-card.html`.
 
 ---
 
@@ -52,7 +65,7 @@ Or skip the UI and drive it from a terminal.
 Open **PowerShell** or **cmd**. One folder:
 
 ```bat
-cd C:\dev\sesefus\apps\journal-clip
+cd C:\Users\bardw\Desktop\journal-clip-streamlined
 ```
 
 ### 1. Prove it compiles

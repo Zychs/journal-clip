@@ -1,9 +1,10 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-for %%I in ("%~dp0..\..\venv\Scripts\python.exe") do set "SESEFUS_CLIP_PYTHON=%%~fI"
-if not exist "%SESEFUS_CLIP_PYTHON%" set "SESEFUS_CLIP_PYTHON="
-if not defined SESEFUS_CLIP_PYTHON set "SESEFUS_CLIP_PYTHON=python"
+for %%I in ("%~dp0venv\Scripts\python.exe") do set "SESEFUS_CLIP_PYTHON=%%~fI"
+if not exist "%SESEFUS_CLIP_PYTHON%" for %%I in ("%~dp0.venv\Scripts\python.exe") do set "SESEFUS_CLIP_PYTHON=%%~fI"
+if not exist "%SESEFUS_CLIP_PYTHON%" for %%I in ("C:\dev\sesefus\venv\Scripts\python.exe") do set "SESEFUS_CLIP_PYTHON=%%~fI"
+if not exist "%SESEFUS_CLIP_PYTHON%" set "SESEFUS_CLIP_PYTHON=python"
 set "SESEFUS_CLIP_HEAVY=%~dp0python\clip_heavy.py"
 set "SESEFUS_CLIP_CONFIG_PY=%~dp0python\clip_config.py"
 set "SESEFUS_CLIP_ALARM_PY=%~dp0python\clip_alarm.py"
@@ -16,7 +17,7 @@ if errorlevel 1 (
 )
 zig build
 if errorlevel 1 (
-  echo zig build failed. Fix is in apps\journal-clip\src . Zig 0.16 only.
+  echo zig build failed. Fix is in src . Zig 0.16 only.
   exit /b 1
 )
 "zig-out\bin\journal-clip.exe" %*
