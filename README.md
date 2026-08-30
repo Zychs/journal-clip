@@ -4,9 +4,78 @@ This folder is the git root (flattened 2026-08-30). Not nested under `apps\`.
 
 A **small** Sesefus command. Not the host. Not Circadia. Not the dashboard.
 
-You speak. It keeps **text**. It destroys the **wav**.
+You speak. It keeps the **sound**, the **words**, and its **reading** of them —
+three products, three rules, three places. It destroys only the scratch wav.
 
 Zig 0.16 only. `Clip.bat` always runs `zig build` first.
+
+Changing this repo? Read **`AGENTS.md`** first — it holds the laws (never
+overwrite raw audio, never overwrite a transcript, no port, flat git root), the
+module map, and how to run the split test suite.
+
+---
+
+## The three data products
+
+One take produces three things. They have different lifetimes, different
+owners, and different failure modes, so they are not stored together.
+
+| Data product | Purpose | Preservation rule | Where |
+| --- | --- | --- | --- |
+| **Raw audio** | acoustic / prosodic research, retraining, audit | **never overwrite** | `audio/` · `python\clip_audio.py` |
+| **Transcript / diarization** | searchable linguistic record | **version alongside the transcription model** | `transcript/` · `python\clip_transcript.py` |
+| **Derived semantics** | tags, embeddings, summaries, inferred state | **revisable model output, not ground truth** | `semantics/` · `python\clip_semantics.py` |
+
+Under the journal folder:
+
+```
+audio/2026/08/20260830-145907-9f3c1a02.wav   read-only, named by content hash
+audio/audio.jsonl                            append-only manifest (+ sha256)
+transcript/transcripts.jsonl                 append-only, one line per version
+semantics/semantics.jsonl                    append-only, one line per revision
+takes.jsonl                                  flat projection — rebuildable
+```
+
+Why it is split this way:
+
+- **The wav happened once.** Whisper can be re-run, the 7B can be re-asked, but
+  the sound of a take cannot be regenerated. It is archived *before* Whisper is
+  even loaded, under a content-addressed name, and the file is made read-only.
+  Archiving the same bytes twice is a no-op; a destination holding *different*
+  bytes raises `OverwriteRefused` rather than clobbering anything.
+- **A transcript is a reading, not a fact.** It is what one named model heard on
+  one named day. Swap `base` for `large-v3` and you get a different, equally
+  legitimate reading — so a re-run *appends* version 2 and version 1 stays
+  readable forever. Your own corrections in `Clip-edit.bat` do the same thing:
+  they append a version marked `produced_by: human`. The machine's reading is
+  never overwritten, which is what makes a model swap auditable.
+- **Semantics are guesses.** The cosine picked the kind; the 7B wrote the gist.
+  Every row carries `ground_truth: false` and names the transcript version it
+  was derived from. Correct a transcript and its real model output does **not**
+  silently follow — it stays put and starts reporting as stale, owed a recompute.
+  Deleting `semantics/` outright costs nothing but compute.
+
+`takes.jsonl` is no longer where anything lives; it is one flat line per take,
+rebuilt from the other two on every write, kept because the UIs already speak
+it. Delete it and `clip_store.py project` builds it back byte for byte.
+
+```bat
+python python\clip_store.py status --root D:\journal    all three, and their rules
+python python\clip_audio.py verify --root D:\journal    re-hash the archive
+python python\clip_transcript.py history --root D:\journal --take 7
+python python\clip_semantics.py stale --root D:\journal  takes owed a recompute
+```
+
+Old journal folders migrate themselves: the first read splits a legacy
+`takes.jsonl` (or the CSV twins) into the three systems, once. Nothing is
+deleted, and the CSVs stay exactly where they are.
+
+If you want the old behaviour — text lands, sound gone:
+
+```bat
+Clip.bat change-audio shred
+Clip.bat change-audio archive
+```
 
 ---
 
@@ -20,7 +89,7 @@ Double-click `Clip-ui.bat`. Same folder as `Clip.bat`.
 4. Waveform is a bipolar envelope (DC bias stripped so gain is true amplitude). Whole-second timer sits top-right of that widget. Look is house **negentropic-blue**.
 5. One **card**. Front is record. **Flip** turns it over — ledger on the back (count, scroll, collapsible groups). Slim profiles `.d` day · `.i` interval · `.n` domain · `.g` intent · `.m` magnitude. Boundaries are probed from this folder’s takes. Click a profile to preview the same tape under different category rules.
 6. Whisper runs **inside this window**. Transcript lands on the plate. No cmd popup. No warning dialog. Silence warns on the amber line.
-7. Temp wav is shredded after the take.
+7. The take is copied into `audio/` first, then the **temp** wav is shredded. The log line names the clip it kept.
 
 No dashboard. No extra server. Close the window to end the session.
 
@@ -37,6 +106,42 @@ It is file + process, with no port; a `hop` still opens `Clip-ui.bat`.
 
 ---
 
+## The card hand (design, not yet built)
+
+Every window here is a **card**: one bordered face on house void, and a
+two-faced card turns over with the same 8-step horizontal squash — defined once
+in `clip_ui.py` (`flip_width_scale`, 16 ms a step, faces swap at the midpoint)
+and imported by everything else.
+
+`design\canvas\` is the canvas for the intended **hand** — artboards as
+`.dc.html`, laid out by `canvas.json`, annotations carrying the open questions.
+
+| Artboard | Card | State |
+| --- | --- | --- |
+| `Record.dc.html` | record ⟷ ledger | **built** — `python\clip_ui.py` |
+| `Main.dc.html` | circadia A · the dial | designed |
+| `CircadiaB.dc.html` | circadia B · the composer | designed |
+| `Controls.dc.html` | storage ⟷ prompt-out | designed |
+| `Cabinet.dc.html` | filing cabinet, three drawers | designed |
+
+Two decisions are open on that canvas and neither has been made:
+
+- **Circadia A or B.** Both drop the permanent server rail that
+  `clip_circadia.py` has today and move it to the back face. A is the dial
+  (quiet, closest to what exists); B is the composer (denser, faster once
+  learned). The `pick-a-circadia` annotation says pick one.
+- **The last two cards of a five-card hand.** The intended fill is the
+  *archival view* and *aytree*, both borrowed from Artifact Scanner at
+  `C:\Users\bardw\artifact-scanner` (`archive_bay.py` + `experimental\archive\`
+  and `experimental\aytree\`). Neither has been retrieved into this repo yet.
+  AyTree's canonical product tree is `C:\dev\AyTree`; its palette is green-gold
+  by its own law, which this repo's negentropic-blue has to answer for.
+
+Those trees are **read-only origins** from here. Copy out of them; never write
+into them.
+
+---
+
 ## Transcription editor (separate goal)
 
 Double-click `Clip-edit.bat`. Not Record. No mic. No Whisper.
@@ -45,14 +150,25 @@ Double-click `Clip-edit.bat`. Not Record. No mic. No Whisper.
 2. Click a take. Fix the text. **Save text**.
 3. Kind is left alone. This does not re-transcribe.
 
+Your correction is appended as a new transcript version, not written over the
+old one — `clip_transcript.py history --take N` still shows what Whisper
+actually heard. If the take had real 7B output, that summary is left alone and
+starts reporting under `clip_semantics.py stale`, because it read the old
+words. If `structured` was only a mirror of the transcript, it follows along.
+
 ---
 
 ## What you have
 
 Two layers:
 
-1. **Zig** (`journal-clip.exe`) — record mic, start Python, shred the wav.
-2. **Python** — Whisper, optional Ollama, append two CSVs on the output folder surface.
+1. **Zig** (`journal-clip.exe`) — record mic, start Python, shred the *scratch* wav.
+2. **Python** — archive the audio, then Whisper, then optional Ollama; each result
+   lands in its own store and the flat `takes.jsonl` view is reprojected.
+
+The shred in step 1 runs only after step 2 has returned, by which time the
+archived copy already exists. That order is deliberate: the irreplaceable
+product is saved before anything that can fail gets a chance to.
 
 Settings persist in `%USERPROFILE%\.sesefus\clip-config.json`. That file is **not** inside the journal folder, so changing the output dir cannot lose it.
 
@@ -85,9 +201,23 @@ If `zig build` errors, the binary is not updated. Stay in this folder. Zig must 
 Clip.bat change-dir C:\Users\bardw\test-write
 ```
 
-Surface of that folder: `takes.jsonl` (one utterance per line). Old `transcriptions.csv` / `ledger.csv` are imported once if the tape is missing. Not nested stamp dirs.
+Surface of that folder: `audio/`, `transcript/`, `semantics/` — the three
+products — plus `takes.jsonl`, the flat view over them. Old
+`transcriptions.csv` / `ledger.csv` are imported once, and left in place. Not
+nested stamp dirs.
 
 Omit the path to **print** the current dir.
+
+### 2b. Decide whether the sound is kept
+
+```bat
+Clip.bat change-audio            print the current mode
+Clip.bat change-audio archive    keep raw audio (default)
+Clip.bat change-audio shred      text only, sound gone
+```
+
+`archive` is the default because raw audio is the one product here that cannot
+be regenerated. It costs roughly 32 KB per second of speech (16 kHz mono 16-bit).
 
 ### 3. Pick the mic
 
