@@ -34,8 +34,8 @@ fn usage() void {
     std.debug.print(
         \\sesefus journal-clip (isolated)
         \\
-        \\  journal-clip                     speak → text → vault, then shred wav
-        \\  journal-clip --seconds N         record length (default 10)
+        \\  journal-clip                     open the card (not a 10s CLI record)
+        \\  journal-clip --seconds N         CLI record length (default 10)
         \\  journal-clip --file path.wav     skip mic (does not delete source)
         \\  journal-clip --say "text"        skip mic + whisper
         \\  journal-clip --no-llm            skip 7B (tests)
@@ -89,7 +89,52 @@ fn findScript(allocator: std.mem.Allocator, io: std.Io, env: anytype, name: []co
         };
         return cand;
     }
+    if (cfg.clipRootAlloc(allocator)) |root| {
+        defer allocator.free(root);
+        const cand = try std.fmt.allocPrint(allocator, "{s}\\python\\{s}", .{ root, name });
+        if (cfg.fileExists(io, cand)) return cand;
+        allocator.free(cand);
+    } else |_| {}
     return error.ScriptNotFound;
+}
+
+fn findPythonw(allocator: std.mem.Allocator, io: std.Io, env: anytype) ![]const u8 {
+    const py = try findPython(allocator, io, env);
+    if (std.mem.endsWith(u8, py, "python.exe")) {
+        const dir = std.fs.path.dirname(py) orelse ".";
+        const cand = try std.fmt.allocPrint(allocator, "{s}\\pythonw.exe", .{dir});
+        if (cfg.fileExists(io, cand)) {
+            allocator.free(py);
+            return cand;
+        }
+        allocator.free(cand);
+    }
+    return py;
+}
+
+fn launchCard(allocator: std.mem.Allocator, io: std.Io, env: anytype) !void {
+    const py = try findPythonw(allocator, io, env);
+    defer allocator.free(py);
+    const script = findScript(allocator, io, env, "clip_ui.py") catch {
+        std.debug.print("[clip] clip_ui.py not found — the card is the surface\n", .{});
+        return error.ScriptNotFound;
+    };
+    defer allocator.free(script);
+    var cwd_path: ?[]const u8 = null;
+    if (cfg.clipRootAlloc(allocator)) |root| {
+        cwd_path = root;
+    } else |_| {}
+    defer if (cwd_path) |p| allocator.free(p);
+
+    var spawn_opts: std.process.SpawnOptions = .{
+        .argv = &.{ py, script },
+        .stdin = .inherit,
+        .stdout = .inherit,
+        .stderr = .inherit,
+    };
+    if (cwd_path) |p| spawn_opts.cwd = .{ .path = p };
+    var child = try std.process.spawn(io, spawn_opts);
+    _ = try child.wait(io);
 }
 
 fn spawnPython(
@@ -129,7 +174,8 @@ fn writeJournal(allocator: std.mem.Allocator, io: std.Io, heavy: Heavy) ![]u8 {
     const kind = heavy.kind orelse "dump";
 
     const full = try std.fs.path.join(allocator, &.{ out_dir, rel });
-    if (std.mem.endsWith(u8, rel, ".csv")) {
+    if (std.mem.endsWith(u8, rel, ".csv") or std.mem.endsWith(u8, rel, ".jsonl")) {
+        // clip_heavy already appended the tape. Do not clobber it as markdown.
         return full;
     }
     if (std.fs.path.dirname(full)) |dir| makeDirAll(io, dir);
@@ -276,6 +322,11 @@ pub fn main(init: std.process.Init) !void {
     const io = init.io;
     const env = init.environ_map;
     const args = try init.minimal.args.toSlice(init.arena.allocator());
+
+    if (args.len < 2) {
+        try launchCard(allocator, io, env);
+        return;
+    }
 
     if (args.len >= 2) {
         const cmd = args[1];

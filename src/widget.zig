@@ -116,6 +116,12 @@ extern "user32" fn GetClientRect(HWND, *RECT) callconv(.winapi) BOOL;
 extern "user32" fn LoadCursorW(?HINSTANCE, usize) callconv(.winapi) ?HCURSOR;
 extern "user32" fn AdjustWindowRectEx(*RECT, u32, BOOL, u32) callconv(.winapi) BOOL;
 extern "user32" fn GetSystemMetrics(i32) callconv(.winapi) i32;
+<<<<<<< Updated upstream
+=======
+extern "user32" fn FindWindowW(?[*:0]const u16, ?[*:0]const u16) callconv(.winapi) ?HWND;
+extern "user32" fn GetWindowRect(HWND, *RECT) callconv(.winapi) BOOL;
+extern "user32" fn SetWindowPos(HWND, ?HWND, i32, i32, i32, i32, u32) callconv(.winapi) BOOL;
+>>>>>>> Stashed changes
 
 extern "gdi32" fn CreateSolidBrush(COLORREF) callconv(.winapi) ?HBRUSH;
 extern "gdi32" fn DeleteObject(HGDIOBJ) callconv(.winapi) BOOL;
@@ -152,6 +158,12 @@ const WS_MINIMIZEBOX = 0x00020000;
 const WS_VISIBLE = 0x10000000;
 const WS_EX_TOPMOST = 0x00000008;
 const SW_SHOW = 5;
+<<<<<<< Updated upstream
+=======
+const SWP_NOSIZE = 0x0001;
+const SWP_SHOWWINDOW = 0x0040;
+const HWND_TOPMOST: HWND = @ptrFromInt(@as(usize, @bitCast(@as(isize, -1))));
+>>>>>>> Stashed changes
 
 const DT_CENTER = 0x0001;
 const DT_VCENTER = 0x0004;
@@ -226,6 +238,13 @@ const App = struct {
     root: []const u8 = "",
     tmp: []const u8 = "",
     home: []const u8 = "",
+<<<<<<< Updated upstream
+=======
+    out_dir: []const u8 = "",
+    dock_file: []const u8 = "",
+    docked: bool = false,
+    dock_tick: u8 = 0,
+>>>>>>> Stashed changes
 
     status_buf: [128]u8 = undefined,
     status: []const u8 = "ready",
@@ -298,6 +317,17 @@ fn buttonRect() RECT {
     return .{ .left = 12, .top = 48, .right = WIDGET_W - 12, .bottom = 48 + 36 };
 }
 
+<<<<<<< Updated upstream
+=======
+fn dockHitRect() RECT {
+    return .{ .left = WIDGET_W - 118, .top = 8, .right = WIDGET_W - 66, .bottom = 24 };
+}
+
+fn inRect(r: RECT, x: i32, y: i32) bool {
+    return x >= r.left and x < r.right and y >= r.top and y < r.bottom;
+}
+
+>>>>>>> Stashed changes
 fn buttonLabel(self: *App, buf: []u8) []const u8 {
     return switch (self.state) {
         .idle => if (self.clicks == 0)
@@ -337,12 +367,27 @@ fn onPaint(self: *App, hwnd: HWND) void {
 
     drawText(
         mem,
+<<<<<<< Updated upstream
         .{ .left = 12, .top = 8, .right = w - 60, .bottom = 24 },
+=======
+        .{ .left = 12, .top = 8, .right = w - 120, .bottom = 24 },
+>>>>>>> Stashed changes
         "⬡  journal-clip",
         CYAN,
         self.font_mast,
         DT_LEFT_LINE,
     );
+<<<<<<< Updated upstream
+=======
+    drawText(
+        mem,
+        dockHitRect(),
+        if (self.docked) "float" else "dock",
+        CYAN,
+        self.font_mast,
+        DT_MID_LINE,
+    );
+>>>>>>> Stashed changes
     var dev_buf: [24]u8 = undefined;
     const dev = std.fmt.bufPrint(&dev_buf, "dev {d}", .{self.device}) catch "dev";
     drawText(
@@ -600,7 +645,15 @@ fn pollChild(self: *App) void {
     }
     self.state = .idle;
     if (code == 0) {
+<<<<<<< Updated upstream
         self.setStatus("kept text · wav shredded", .{});
+=======
+        if (self.out_dir.len > 0) {
+            self.setStatus("kept · {s}", .{self.out_dir});
+        } else {
+            self.setStatus("kept text · wav shredded", .{});
+        }
+>>>>>>> Stashed changes
     } else {
         self.setStatus("journal-clip exit {d} · wav shredded", .{code});
     }
@@ -661,6 +714,25 @@ fn loadAlarm(self: *App) void {
 
 // ── window ───────────────────────────────────────────────────────────────────
 
+<<<<<<< Updated upstream
+=======
+fn followCard(self: *App) void {
+    const hwnd = self.hwnd orelse return;
+    const title = std.unicode.utf8ToUtf16LeStringLiteral("journal-clip");
+    const card = FindWindowW(null, title) orelse return;
+    var r: RECT = undefined;
+    if (GetWindowRect(card, &r) == 0) return;
+    const pos = cfg.dockPos(r.left, r.top, r.bottom - r.top);
+    _ = SetWindowPos(hwnd, HWND_TOPMOST, pos.x, pos.y, 0, 0, SWP_NOSIZE | SWP_SHOWWINDOW);
+}
+
+fn toggleDock(self: *App) void {
+    self.docked = !self.docked;
+    if (self.dock_file.len > 0) cfg.writeDockFile(self.io, self.dock_file, self.docked);
+    if (self.docked) followCard(self);
+}
+
+>>>>>>> Stashed changes
 fn onClick(self: *App) void {
     switch (self.state) {
         .idle => {
@@ -699,6 +771,14 @@ fn wndProc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) callconv(.winap
                     meterPoll(self);
                     if (self.state == .recording and tickMs() -| self.started_ms >= self.limit_ms) finishTake(self);
                     pollChild(self);
+<<<<<<< Updated upstream
+=======
+                    self.dock_tick +%= 1;
+                    if (self.dock_tick % 8 == 0 and self.dock_file.len > 0) {
+                        self.docked = cfg.loadDockedFromPath(self.gpa, self.io, self.dock_file);
+                    }
+                    if (self.docked) followCard(self);
+>>>>>>> Stashed changes
                     _ = InvalidateRect(hwnd, null, 0);
                 },
                 TIMER_CLICK => {
@@ -715,8 +795,16 @@ fn wndProc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) callconv(.winap
         WM_LBUTTONDOWN => {
             const x: i32 = @as(i16, @truncate(lparam & 0xffff));
             const y: i32 = @as(i16, @truncate((lparam >> 16) & 0xffff));
+<<<<<<< Updated upstream
             const btn = buttonRect();
             if (x >= btn.left and x < btn.right and y >= btn.top and y < btn.bottom) onClick(self);
+=======
+            if (inRect(dockHitRect(), x, y)) {
+                toggleDock(self);
+                return 0;
+            }
+            if (inRect(buttonRect(), x, y)) onClick(self);
+>>>>>>> Stashed changes
             return 0;
         },
         WM_KEYDOWN => {
@@ -801,13 +889,28 @@ pub fn main(init: std.process.Init) !void {
     app.tmp = env.get("TEMP") orelse env.get("TMP") orelse "C:\\Windows\\Temp";
     app.home = env.get("USERPROFILE") orelse "";
     app.device = cfg.loadInputIndex(gpa, io, env);
+<<<<<<< Updated upstream
     app.setStatus("ready", .{});
+=======
+    if (cfg.dockPath(gpa, env)) |p| app.dock_file = p;
+    app.docked = cfg.loadDockedFromPath(gpa, io, app.dock_file);
+    if (cfg.loadOutDir(gpa, io, env)) |d| {
+        app.out_dir = d;
+        app.setStatus("ready · {s}", .{d});
+    } else {
+        app.setStatus("ready", .{});
+    }
+>>>>>>> Stashed changes
     exportChildEnv(&app);
     if (!fileExists(io, app.exe)) app.setStatus("journal-clip.exe missing — run zig build", .{});
 
     const hinst = GetModuleHandleW(null);
     const class_name = std.unicode.utf8ToUtf16LeStringLiteral("JournalClipWidget");
+<<<<<<< Updated upstream
     const title = std.unicode.utf8ToUtf16LeStringLiteral("journal-clip");
+=======
+    const title = std.unicode.utf8ToUtf16LeStringLiteral("journal-clip widget");
+>>>>>>> Stashed changes
     const bg = CreateSolidBrush(BG);
     const wc: WNDCLASSEXW = .{
         .cbSize = @sizeOf(WNDCLASSEXW),
@@ -861,6 +964,11 @@ pub fn main(init: std.process.Init) !void {
         shred.shredPath(io, wav) catch {};
         gpa.free(wav);
     }
+<<<<<<< Updated upstream
+=======
+    if (app.dock_file.len > 0) gpa.free(app.dock_file);
+    if (app.out_dir.len > 0) gpa.free(app.out_dir);
+>>>>>>> Stashed changes
 }
 
 // ── tests ────────────────────────────────────────────────────────────────────
@@ -890,3 +998,12 @@ test "meter bar is dark on silence and full on clip" {
     try std.testing.expectEqual(@as(i32, 276), meterLit(276, 1.0));
     try std.testing.expectEqual(@as(i32, 276), meterLit(276, 9.0)); // clamped, never overdraws
 }
+<<<<<<< Updated upstream
+=======
+
+test "dock sits under the card" {
+    const pos = cfg.dockPos(40, 80, 680);
+    try std.testing.expectEqual(@as(i32, 40), pos.x);
+    try std.testing.expectEqual(@as(i32, 760), pos.y);
+}
+>>>>>>> Stashed changes

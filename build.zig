@@ -28,8 +28,12 @@ pub fn build(b: *std.Build) void {
 
     var widget_tests: ?*std.Build.Step.Compile = null;
 
+<<<<<<< Updated upstream
     // The compact widget. Win32 only, so it rides along on Windows targets and
     // is skipped elsewhere. `zig build` installs it next to journal-clip.exe.
+=======
+    // Compact widget. Win32 only. `zig build` installs it next to journal-clip.exe.
+>>>>>>> Stashed changes
     if (target.result.os.tag == .windows) {
         const widget = b.addExecutable(.{
             .name = "journal-clip-widget",
@@ -39,7 +43,11 @@ pub fn build(b: *std.Build) void {
                 .optimize = optimize,
             }),
         });
+<<<<<<< Updated upstream
         widget.subsystem = .windows; // no console flash behind the pane
+=======
+        widget.subsystem = .windows;
+>>>>>>> Stashed changes
         widget.root_module.linkSystemLibrary("winmm", .{});
         widget.root_module.linkSystemLibrary("user32", .{});
         widget.root_module.linkSystemLibrary("gdi32", .{});

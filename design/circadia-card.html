@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>journal-clip · circadia card</title>
+  <style>
+    :root {
+      --bg: #050509;
+      --bg-top: #17172a;
+      --ink: #e7e7f2;
+      --ink-strong: #f4f4fb;
+      --ink-soft: #a7a7bd;
+      --ink-mute: #6c6c83;
+      --cyan: #7cf7ff;
+      --cyan-soft: #9fe9f1;
+      --cyan-deep: #28A2B2;
+      --amber: #e2a24a;
+      --line: #272739;
+      --panel: #101018;
+      --void: #0a0a10;
+      --good: #4CAE7C;
+      --mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+      --sans: "Segoe UI", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; min-height: 100%;
+      background: var(--bg); color: var(--ink);
+      font: 16px/1.45 var(--sans);
+    }
+    body {
+      padding: 22px 28px 40px;
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+    .mast {
+      color: var(--cyan);
+      font: 12px/1 var(--mono);
+      letter-spacing: 0.08em;
+    }
+    h1 {
+      margin: 8px 0 6px;
+      font: 600 1.45rem/1.2 var(--sans);
+      color: var(--ink-strong);
+    }
+    .stand {
+      color: var(--ink-soft);
+      max-width: 62ch;
+      margin: 0 0 18px;
+    }
+    .stand strong { color: var(--ink); font-weight: 600; }
+    .hint {
+      color: var(--ink-mute);
+      font: 12px/1.4 var(--mono);
+      margin: 0 0 18px;
+    }
+    .stage {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.72fr);
+      gap: 18px;
+      align-items: stretch;
+      min-height: 540px;
+    }
+    @media (max-width: 860px) {
+      .stage { grid-template-columns: 1fr; }
+    }
+
+    /* LEFT: flips. RIGHT: never. */
+    .flip-wrap {
+      perspective: 1600px;
+      min-height: 540px;
+    }
+    .flipper {
+      position: relative;
+      width: 100%;
+      min-height: 540px;
+      height: 100%;
+      transform-style: preserve-3d;
+      transition: transform 0.55s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .flip-wrap.is-flipped .flipper { transform: rotateY(180deg); }
+    .face {
+      position: absolute;
+      inset: 0;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 22px 22px 18px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .face.back {
+      transform: rotateY(180deg);
+      background: var(--void);
+    }
+    .flip-wrap.is-flipped .face.front { pointer-events: none; }
+    .flip-wrap:not(.is-flipped) .face.back { pointer-events: none; }
+
+    .k {
+      color: var(--cyan);
+      font: 700 11px/1 var(--mono);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .face h2 {
+      margin: 8px 0 10px;
+      font: 600 1.2rem/1.2 var(--sans);
+    }
+    .face p.why {
+      color: var(--ink-soft);
+      margin: 0 0 16px;
+      max-width: 52ch;
+    }
+
+    ol.walk {
+      margin: 0 0 16px;
+      padding: 0;
+      list-style: none;
+      counter-reset: walk;
+    }
+    ol.walk li {
+      counter-increment: walk;
+      display: grid;
+      grid-template-columns: 2.2rem 6.5rem 1fr;
+      gap: 10px;
+      align-items: baseline;
+      padding: 8px 0;
+      border-top: 1px solid var(--line);
+      font-size: 0.92rem;
+    }
+    ol.walk li:last-child { border-bottom: 1px solid var(--line); }
+    ol.walk li::before {
+      content: counter(walk);
+      color: var(--cyan);
+      font: 700 11px/1 var(--mono);
+    }
+    ol.walk .f {
+      font-family: var(--mono);
+      color: var(--cyan-soft);
+      font-size: 0.82rem;
+    }
+    ol.walk .d { color: var(--ink-soft); font-size: 0.88rem; }
+    .opt { color: var(--ink-mute); }
+
+    pre {
+      margin: 0;
+      padding: 12px 14px;
+      background: var(--void);
+      border: 1px solid var(--line);
+      color: var(--cyan-soft);
+      font: 12px/1.45 var(--mono);
+      overflow-x: auto;
+      white-space: pre-wrap;
+    }
+    .face.back pre { background: var(--bg-top); }
+
+    .bar {
+      margin-top: auto;
+      padding-top: 14px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+    button.flip {
+      appearance: none;
+      border: 1px solid var(--cyan-deep);
+      background: var(--bg-top);
+      color: var(--cyan);
+      font: 600 13px/1 var(--sans);
+      padding: 10px 14px;
+      cursor: pointer;
+    }
+    button.flip:hover { border-color: var(--cyan); }
+    .bar .meta { color: var(--ink-mute); font: 11px/1.3 var(--mono); }
+
+    .server {
+      border: 1px solid var(--line);
+      background: var(--void);
+      padding: 22px 20px 18px;
+      display: flex;
+      flex-direction: column;
+      min-height: 540px;
+    }
+    .server .stamp {
+      display: inline-block;
+      border: 1px solid var(--amber);
+      color: var(--amber);
+      font: 700 10px/1 var(--mono);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 4px 8px;
+      margin: 8px 0 14px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 5.2rem 1fr;
+      gap: 8px;
+      padding: 7px 0;
+      border-top: 1px solid var(--line);
+      font-size: 0.92rem;
+    }
+    .row:last-of-type { border-bottom: 1px solid var(--line); }
+    .row .l { color: var(--ink-mute); font: 11px/1.4 var(--mono); }
+    .stopped { color: var(--amber); }
+    .server .law {
+      color: var(--ink-soft);
+      font-size: 0.88rem;
+      margin: 14px 0;
+      max-width: 36ch;
+    }
+    .server pre { margin-top: auto; }
+
+    footer {
+      margin-top: 22px;
+      color: var(--ink-mute);
+      font-size: 0.85rem;
+      max-width: 78ch;
+    }
+    footer a { color: var(--cyan-soft); }
+    code { font-family: var(--mono); font-size: 0.86em; color: var(--cyan-soft); }
+  </style>
+</head>
+<body>
+  <div class="mast">⬡  journal-clip  /  circadia card</div>
+  <h1>Time fires. Then you speak.</h1>
+  <p class="stand">
+    Capture already lives here. This card completes it.
+    A CLI follows one metadata walk to <strong>add</strong> an alarm,
+    then <strong>interval</strong> it, then <strong>edit by search</strong>.
+    Circadia stays on the right. It does not flip. Hop still opens Clip-ui.
+  </p>
+  <p class="hint">click the left card or press F to flip add ↔ edit · server never moves · file page, no port</p>
+
+  <div class="stage">
+    <div class="flip-wrap" id="card">
+      <div class="flipper">
+        <section class="face front" aria-label="add">
+          <div class="k">front · add</div>
+          <h2>Create by walking the schema</h2>
+          <p class="why">
+            Named fields. Same order every time.
+            Interval is not part of create. Missing required fields refuse and list what is left.
+          </p>
+          <ol class="walk">
+            <li><span class="f">id</span><span class="d">slug handle. unique. morning</span></li>
+            <li><span class="f">title</span><span class="d">human line on the cue</span></li>
+            <li><span class="f">when</span><span class="d">07:00 · +25m · RFC3339</span></li>
+            <li><span class="f">every</span><span class="d">skip on add. one-shot. <span class="opt">interval later</span></span></li>
+            <li><span class="f">do</span><span class="d">hop (default) · cue · none</span></li>
+            <li><span class="f">note</span><span class="d">search haystack. optional.</span></li>
+          </ol>
+          <pre>Clip.bat alarm add --id morning --title "wake journal" --when 07:00
+Clip.bat alarm add --id stretch --when +25m --do hop
+Clip.bat alarm add
+     (walks the six fields)
+
+Clip.bat alarm interval morning --every 1d
+Clip.bat alarm interval /wake --every 90m</pre>
+          <div class="bar">
+            <button class="flip" type="button" data-flip>flip to edit</button>
+            <span class="meta">step 1 add · step 2 interval</span>
+          </div>
+        </section>
+
+        <section class="face back" aria-label="edit">
+          <div class="k">back · edit</div>
+          <h2>Find, then patch one row</h2>
+          <p class="why">
+            Search is not mutate. A query must hit exactly one row to edit.
+            0 or 2+ prints the list and exits 1. Patch only named fields.
+          </p>
+          <ol class="walk">
+            <li><span class="f">find</span><span class="d">substring on id · title · note</span></li>
+            <li><span class="f">id</span><span class="d">exact slug. always unique.</span></li>
+            <li><span class="f">/q</span><span class="d">leading slash = query</span></li>
+            <li><span class="f">pause</span><span class="d">keep the row. stop the fire.</span></li>
+            <li><span class="f">arm</span><span class="d">put it back on the car</span></li>
+            <li><span class="f">archive</span><span class="d">hide from list. do not delete.</span></li>
+          </ol>
+          <pre>Clip.bat alarm find stretch
+Clip.bat alarm edit morning --when 07:15
+Clip.bat alarm edit /wake --title "morning plate"
+Clip.bat alarm edit /stretch --pause
+Clip.bat alarm edit morning --arm
+Clip.bat alarm edit /old --archive</pre>
+          <div class="bar">
+            <button class="flip" type="button" data-flip>flip to add</button>
+            <span class="meta">step 3 edit by search</span>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <aside class="server" aria-label="server, no flip">
+      <div class="k">right · server</div>
+      <h2 style="margin:8px 0 0;font:600 1.2rem/1.2 var(--sans);">No flip</h2>
+      <div class="stamp">stopped · design</div>
+      <div class="row"><span class="l">running</span><span class="stopped">no · do not fake next-due</span></div>
+      <div class="row"><span class="l">next</span><span>—</span></div>
+      <div class="row"><span class="l">last</span><span>—</span></div>
+      <div class="row"><span class="l">port</span><span>none. file + process.</span></div>
+      <div class="row"><span class="l">store</span><span>%USERPROFILE%\.sesefus\clip-alarms.jsonl</span></div>
+      <p class="law">
+        Local timekeeper. Sleeps until next armed <code>when</code>.
+        Overdue pendings fire on wake. Hop opens this tree’s record window.
+        Not :3000. Not :8777. Not Sound Recorder.
+      </p>
+      <pre>Clip.bat alarm server
+Clip.bat alarm status
+Clip.bat alarm next
+Clip.bat alarm list</pre>
+    </aside>
+  </div>
+
+  <footer>
+    Prototype Circadia module in <code>journal-clip</code>. Timekeeper card, not the dashboard.
+    Contract: <a href="../ALARM.md">ALARM.md</a>
+    · schema lives in <code>python/clip_alarm.py</code> FIELDS
+    · capture remains speak · plate · shred.
+    This page is the design card. Live door: Circadia.bat. It is not a live clock.
+  </footer>
+
+  <script>
+    const wrap = document.getElementById("card");
+    function flip() {
+      wrap.classList.toggle("is-flipped");
+      const onBack = wrap.classList.contains("is-flipped");
+      wrap.querySelectorAll("[data-flip]").forEach((b) => {
+        b.textContent = onBack ? "flip to add" : "flip to edit";
+      });
+    }
+    document.querySelectorAll("[data-flip]").forEach((b) => {
+      b.addEventListener("click", (e) => { e.stopPropagation(); flip(); });
+    });
+    wrap.addEventListener("click", (e) => {
+      if (e.target.closest("pre, a, button")) return;
+      flip();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "f" || e.key === "F") {
+        if (e.target.closest("input, textarea")) return;
+        e.preventDefault();
+        flip();
+      }
+    });
+  </script>
+</body>
+</html>

@@ -12,8 +12,16 @@ sys.path.insert(0, str(HERE))
 
 from clip_ui import (  # noqa: E402
     CLIP_BAT,
+<<<<<<< Updated upstream
     WINDOW_DEFAULT,
+=======
+    CLIP_ROOT,
+    dock_pos,
+    flip_swap_step,
+    flip_width_scale,
+>>>>>>> Stashed changes
     is_silent,
+    load_docked,
     load_recent_dir,
     load_window_size,
     parse_device_list,
@@ -23,10 +31,12 @@ from clip_ui import (  # noqa: E402
     record_clicks_to_seconds,
     remaining_whole_seconds,
     rows_that_fit,
+    save_docked,
     save_recent_dir,
     save_window_size,
     short_ledger_line,
     visible_ledger_rows,
+    widget_exe,
     write_session_config,
 )
 
@@ -180,6 +190,34 @@ class TestClipUi(unittest.TestCase):
         self.assertNotIn("dump", line)
         self.assertLessEqual(len(line), 28)
 
+<<<<<<< Updated upstream
+=======
+    def test_dock_sits_under_the_card(self):
+        self.assertEqual(dock_pos(40, 80, 680), (40, 760))
+
+    def test_dock_state_roundtrip(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "clip-dock.json"
+            self.assertFalse(load_docked(path))
+            save_docked(True, path)
+            self.assertTrue(load_docked(path))
+            save_docked(False, path)
+            self.assertFalse(load_docked(path))
+
+    def test_widget_exe_sits_next_to_journal_clip(self):
+        exe = widget_exe(CLIP_ROOT)
+        self.assertEqual(exe.name, "journal-clip-widget.exe")
+        self.assertEqual(exe.parent.name, "bin")
+
+    def test_flip_scale_is_edge_on_at_midpoint(self):
+        self.assertEqual(flip_width_scale(0, 8), 1.0)
+        self.assertEqual(flip_width_scale(8, 8), 1.0)
+        self.assertLessEqual(flip_width_scale(4, 8), 0.02)
+        self.assertEqual(flip_swap_step(8), 4)
+        self.assertGreater(flip_width_scale(2, 8), flip_width_scale(4, 8))
+        self.assertGreater(flip_width_scale(6, 8), flip_width_scale(4, 8))
+
+>>>>>>> Stashed changes
     def test_clip_ui_constructs_tape_tree(self):
         import os
         import tkinter as tk

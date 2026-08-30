@@ -38,6 +38,22 @@ class TestStore(unittest.TestCase):
             self.assertFalse((root / "transcriptions.csv").is_file())
             self.assertFalse((root / "ledger.csv").is_file())
 
+    def test_append_survives_markdown_clobber(self):
+        """Zig used to overwrite takes.jsonl as markdown. New lines must still land."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            tape = root / TAPE_NAME
+            tape.write_text(
+                "---\nkind: dump\nclip: journal-clip\n---\n\nold wreckage\n",
+                encoding="utf-8",
+            )
+            row = append(root, text="widget take for test-write")
+            self.assertEqual(row["id"], "1")
+            body = tape.read_text(encoding="utf-8")
+            self.assertIn("widget take for test-write", body)
+            texts = [t["text"] for t in list_takes(root)]
+            self.assertEqual(texts, ["widget take for test-write"])
+
     def test_harvest_skips_empty_purge_keeps_csv(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

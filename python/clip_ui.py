@@ -13,6 +13,7 @@ import os
 import queue
 import re
 import struct
+import subprocess
 import sys
 import tempfile
 import threading
@@ -174,6 +175,98 @@ def short_ledger_line(row: dict[str, str], max_chars: int = 48) -> str:
     return (head + preview).rstrip()
 
 
+<<<<<<< Updated upstream
+=======
+def flip_width_scale(step: int, steps: int = FLIP_STEPS) -> float:
+    """Width scale for a squash flip. 1 at the ends, edge-on at the midpoint."""
+    steps = max(2, int(steps))
+    half = steps // 2
+    s = max(0, int(step))
+    if s <= 0 or s >= steps:
+        return 1.0
+    if s <= half:
+        return max(0.02, 1.0 - (s / half))
+    return max(0.02, (s - half) / half)
+
+
+def flip_swap_step(steps: int = FLIP_STEPS) -> int:
+    return max(1, int(steps) // 2)
+
+
+WIDGET_CLASS = "JournalClipWidget"
+WIDGET_W = 300
+WIDGET_H = 132
+
+
+def dock_state_path() -> Path:
+    env = os.environ.get("SESEFUS_CLIP_DOCK")
+    if env:
+        return Path(env)
+    home = Path(os.environ.get("USERPROFILE") or os.environ.get("HOME") or Path.home())
+    return home / ".sesefus" / "clip-dock.json"
+
+
+def load_docked(path: Path | None = None) -> bool:
+    p = path or dock_state_path()
+    if not p.is_file():
+        return False
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return bool(isinstance(data, dict) and data.get("docked"))
+
+
+def save_docked(flag: bool, path: Path | None = None) -> Path:
+    p = path or dock_state_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps({"docked": bool(flag)}) + "\n", encoding="utf-8")
+    return p
+
+
+def dock_pos(card_x: int, card_y: int, card_h: int) -> tuple[int, int]:
+    """Widget sits flush under the card. Same left edge."""
+    return (int(card_x), int(card_y) + int(card_h))
+
+
+def widget_exe(root: Path | None = None) -> Path:
+    return (root or CLIP_ROOT) / "zig-out" / "bin" / "journal-clip-widget.exe"
+
+
+def find_widget_hwnd() -> int:
+    if sys.platform != "win32":
+        return 0
+    import ctypes
+
+    return int(ctypes.windll.user32.FindWindowW(WIDGET_CLASS, None) or 0)
+
+
+def place_widget_hwnd(hwnd: int, x: int, y: int) -> None:
+    if not hwnd:
+        return
+    import ctypes
+
+    hwnd_topmost = -1
+    swp_nosize = 0x0001
+    swp_showwindow = 0x0040
+    ctypes.windll.user32.SetWindowPos(
+        hwnd, hwnd_topmost, int(x), int(y), 0, 0, swp_nosize | swp_showwindow
+    )
+
+
+def spawn_widget(root: Path | None = None) -> bool:
+    exe = widget_exe(root)
+    if not exe.is_file():
+        return False
+    subprocess.Popen(
+        [str(exe)],
+        cwd=str(root or CLIP_ROOT),
+        close_fds=False,
+    )
+    return True
+
+
+>>>>>>> Stashed changes
 def load_intent_cues() -> str:
     env = os.environ.get("SESEFUS_INTENT") or os.environ.get("SESEFUS_INTENT_PACKET")
     paths: list[Path] = []
@@ -503,8 +596,21 @@ class ClipUi:
         body = ttk.Frame(pad)
         body.pack(fill=tk.BOTH, expand=True)
 
+<<<<<<< Updated upstream
         left = ttk.Frame(body)
         left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+=======
+        chrome = ttk.Frame(self.card)
+        chrome.pack(fill=tk.X, padx=14, pady=(12, 0))
+        self.mast = ttk.Label(chrome, text="⬡  journal-clip  /  this tower", style="Mast.TLabel")
+        self.mast.pack(side=tk.LEFT)
+        self.flip_btn = ink_button(chrome, "flip", self.on_flip)
+        self.flip_btn.pack(side=tk.RIGHT)
+        self.dock_btn = ink_button(chrome, "dock", self.on_dock)
+        self.dock_btn.pack(side=tk.RIGHT, padx=(0, 8))
+        self._docked = load_docked()
+        self._sync_dock_chrome()
+>>>>>>> Stashed changes
 
         right = ttk.Frame(body, width=300)
         right.pack(side=tk.RIGHT, fill=tk.Y, padx=(14, 0))
@@ -593,12 +699,104 @@ class ClipUi:
         self.tree.tag_configure("group", foreground=CYAN)
         self.tree.tag_configure("take", foreground=INK)
 
+<<<<<<< Updated upstream
+=======
+        self._apply_face(1.0)
+>>>>>>> Stashed changes
         self.root.bind("<Configure>", self._on_root_configure)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.reload_devices()
         self.reload_ledger()
+        if self._docked:
+            self.root.after(200, self._ensure_widget)
         self.root.after(50, self._pump)
 
+<<<<<<< Updated upstream
+=======
+    def on_flip(self) -> None:
+        self.flip(animate=True)
+
+    def flip(self, *, animate: bool = True) -> None:
+        if self._flipping:
+            return
+        nxt = not self._face_is_back
+        if not animate:
+            self._face_is_back = nxt
+            self._apply_face(1.0)
+            return
+        self._flipping = True
+        self._flip_step = 0
+        self._flip_dest_back = nxt
+        self._tick_flip()
+
+    def _tick_flip(self) -> None:
+        step = self._flip_step
+        steps = FLIP_STEPS
+        if step == flip_swap_step(steps):
+            self._face_is_back = self._flip_dest_back
+        self._apply_face(flip_width_scale(step, steps))
+        if step >= steps:
+            self._flipping = False
+            self._flip_job = None
+            self._apply_face(1.0)
+            return
+        self._flip_step = step + 1
+        self._flip_job = self.root.after(FLIP_MS, self._tick_flip)
+
+    def _apply_face(self, scale: float) -> None:
+        show = self.face_back if self._face_is_back else self.face_front
+        hide = self.face_front if self._face_is_back else self.face_back
+        hide.place_forget()
+        show.place(
+            relx=0.5,
+            rely=0,
+            relwidth=max(0.02, float(scale)),
+            relheight=1.0,
+            anchor="n",
+        )
+        if self._face_is_back:
+            self.mast.configure(text="⬡  journal-clip  /  ledger")
+        else:
+            self.mast.configure(text="⬡  journal-clip  /  this tower")
+
+    def _sync_dock_chrome(self) -> None:
+        self.dock_btn.configure(text="undock" if self._docked else "dock")
+
+    def on_dock(self) -> None:
+        self._docked = not self._docked
+        save_docked(self._docked)
+        self._sync_dock_chrome()
+        if self._docked:
+            self._ensure_widget()
+        else:
+            self.append_log("— widget floating")
+
+    def _ensure_widget(self) -> None:
+        if find_widget_hwnd():
+            self._place_docked_widget()
+            return
+        if not spawn_widget():
+            self.append_log("— widget exe missing — zig build")
+            return
+        self.root.after(400, self._place_docked_widget)
+
+    def _place_docked_widget(self) -> None:
+        if not self._docked:
+            return
+        hwnd = find_widget_hwnd()
+        if not hwnd:
+            return
+        self.root.update_idletasks()
+        x, y = dock_pos(self.root.winfo_rootx(), self.root.winfo_rooty(), self.root.winfo_height())
+        place_widget_hwnd(hwnd, x, y)
+
+    def _on_root_configure(self, event: Any) -> None:
+        if event.widget is not self.root:
+            return
+        if self._docked:
+            self._place_docked_widget()
+
+>>>>>>> Stashed changes
     def append_log(self, text: str) -> None:
         self.log.configure(state="normal")
         self.log.insert("end", text)

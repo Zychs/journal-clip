@@ -1,6 +1,6 @@
 # journal-clip — what this is
 
-A **small** Sesefus command. Not the host. Not Circadia. Not the dashboard.
+A **small** Sesefus command. Not the host. Not the Circadia dashboard. Not a Zig extract.
 
 You speak. It keeps **text**. It destroys the **wav**.
 
@@ -8,22 +8,32 @@ Zig 0.16 only. `Clip.bat` always runs `zig build` first.
 
 ---
 
-## UI (launcher over Clip.bat)
+## UI (the card)
 
-Double-click `Clip-ui.bat`. Same folder as `Clip.bat`.
+`journal-clip.exe` with **no args** opens the card. So does `Clip.bat` and `Clip-ui.bat`.
+
+`--file`, `--say`, `change-dir`, `status` stay CLI (the widget hands a wav with `--file`).
 
 1. Startup reloads the **last folder** (`%USERPROFILE%\.sesefus\clip-ui.json`). Missing folder → dialog. **change** picks another. Not written into `clip-config.json`.
 2. Dropdown is WinMM capture devices. Default pick is the **Maono USB** mic if it is present.
 3. **Record** clicks: 1=30s, 2=60s, 3=90s, 4=120s. Wait a beat after the last click, then it starts. **Stop / send** ends early.
 4. Waveform is a bipolar envelope (DC bias stripped so gain is true amplitude). Whole-second timer sits top-right of that widget. Look is house **negentropic-blue**.
+<<<<<<< Updated upstream
 5. Tape is on the **right**: entry count, scroll, collapsible groups. Slim profiles `.d` day · `.i` interval · `.n` domain · `.g` intent · `.m` magnitude. Boundaries are probed from this folder’s takes. Click a profile to preview the same tape under different category rules.
 6. Whisper runs **inside this window**. Transcript lands on the plate. No cmd popup. No warning dialog. Silence warns on the amber line.
 7. Temp wav is shredded after the take.
+=======
+5. One **card**. Front is record. **Flip** turns it over — ledger on the back (count, scroll, collapsible groups). Slim profiles `.d` day · `.i` interval · `.n` domain · `.g` intent · `.m` magnitude. Boundaries are probed from this folder’s takes. Click a profile to preview the same tape under different category rules.
+6. **dock** / **undock** snaps the compact widget under this window, or lets it float. The widget itself has the same **dock** / **float** hit. Widget takes append `takes.jsonl` in the folder from `change-dir` (default `test-write`).
+7. Whisper runs **inside this window**. Transcript lands on the plate. No cmd popup. No warning dialog. Silence warns on the amber line.
+8. Temp wav is shredded after the take.
+>>>>>>> Stashed changes
 
 No dashboard. No extra server. Close the window to end the session.
 
 ---
 
+<<<<<<< Updated upstream
 ## Compact widget (`zig build` → `zig-out\bin\journal-clip-widget.exe`)
 
 A 300×132 always-on-top pane. Native Win32, no Python in that process, no Tk.
@@ -35,6 +45,15 @@ A 300×132 always-on-top pane. Native Win32, no Python in that process, no Tk.
 5. Bottom line is the next **armed** alarm off `clip-alarms.jsonl`, re-read every 30s.
 
 Non-Windows targets skip the widget; `zig build` still produces `journal-clip.exe`.
+=======
+## Circadia card (prototype)
+
+Double-click `Circadia.bat`. Same folder as `Clip.bat`.
+
+This is the alarm card from the other journal-clip trees: left flips **add ↔ edit**, the right rail is the timekeeper and **never flips**. It writes `%USERPROFILE%\.sesefus\clip-alarms.jsonl` through `clip_alarm.py`. Hop still opens Clip-ui. Not the dashboard. Not `:3000`. Not a Zig extract.
+
+`Circadia.bat design` opens the static HTML twin (`design/circadia-card.html`).
+>>>>>>> Stashed changes
 
 ---
 
@@ -52,8 +71,8 @@ Double-click `Clip-edit.bat`. Not Record. No mic. No Whisper.
 
 Two layers:
 
-1. **Zig** (`journal-clip.exe`) — record mic, start Python, shred the wav.
-2. **Python** — Whisper, optional Ollama, append two CSVs on the output folder surface.
+1. **Zig** (`journal-clip.exe`) — the card door, CLI `--file` for the widget, shred the wav.
+2. **Python** — the card, Whisper, optional Ollama, append `takes.jsonl` on the output folder.
 
 Settings persist in `%USERPROFILE%\.sesefus\clip-config.json`. That file is **not** inside the journal folder, so changing the output dir cannot lose it.
 
@@ -138,7 +157,7 @@ That still writes a markdown file. It does not need Whisper.
 
 - Not starting `sesefus.exe --role host`.
 - Not opening the React dashboard.
-- Not Circadia.
+- Not the Circadia dashboard / `:3000` / Zig extract. The prototype card is `Circadia.bat`.
 - Not a paid API. Local Whisper + local Ollama only.
 
 ---
