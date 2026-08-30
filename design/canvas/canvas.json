@@ -1,0 +1,33 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 520, "h": 680, "title": "Circadia A — the dial", "is_interactive": true },
+    { "file": "CircadiaB.dc.html", "x": 620, "y": 0, "w": 520, "h": 680, "title": "Circadia B — the composer", "is_interactive": true },
+    { "file": "Record.dc.html", "x": 1240, "y": 0, "w": 520, "h": 680, "title": "Record ⟷ ledger (exists)", "is_interactive": true },
+    { "file": "Controls.dc.html", "x": 0, "y": 800, "w": 520, "h": 680, "title": "Storage ⟷ prompt-out", "is_interactive": true },
+    { "file": "Cabinet.dc.html", "x": 620, "y": 800, "w": 360, "h": 680, "title": "Filing cabinet", "is_interactive": true }
+  ],
+  "annotations": [
+    {
+      "id": "pick-a-circadia",
+      "x": 0,
+      "y": -280,
+      "w": 1140,
+      "text": "Circadia, two directions — pick one.\n\nA · the dial — walks the six fields, promotes WHEN to the one dominant element; the back is a countdown over a 24h rail. Quiet, closest to what you have.\nB · the composer — one command line that assembles as you click field chips; the back is a 7-day matrix of every armed fire. Denser, faster once learned, more to explain.\n\nBoth drop the permanent server rail. That rail is what made the old card feel heavy — it now lives on the back face."
+    },
+    {
+      "id": "flip-click",
+      "x": 1240,
+      "y": -150,
+      "w": 520,
+      "text": "Every two-faced card here flips for real — click the flip button.\n\nSame 8-step horizontal squash as clip_ui.py (flip_width_scale, 16ms a step, faces swap at the midpoint).\n\nThe cabinet is the exception: it has no back, it has drawers."
+    },
+    {
+      "id": "legibility",
+      "x": 0,
+      "y": 1530,
+      "w": 980,
+      "text": "This row is the legibility fix.\n\nStorage face: each of the three products states its own preservation rule, its size, and its health — audio integrity, which transcription models the record was built from, how many readings are owed a recompute. The archive/shred toggle is the one destructive control, so it sits alone.\n\nCabinet: three drawers, one per store, one open at a time so the carcass never changes height. Click any row and the take highlights in all three drawers — the footer is the payoff line: one take, three products."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

@@ -1,6 +1,14 @@
 //! Isolated journal clip. No host, no dashboard, no Circadia.
-//! Zig: record + orchestrate + write + shred.
-//! Python: whisper + nomic + 7B.
+//! Zig: record + orchestrate + write + shred the scratch wav.
+//! Python: archive audio + whisper + nomic + 7B.
+//!
+//! One take makes three products, kept apart on purpose:
+//!   raw audio   never overwritten  (python/clip_audio.py)
+//!   transcript  versioned by model (python/clip_transcript.py)
+//!   semantics   revisable guesses  (python/clip_semantics.py)
+//!
+//! The shred below destroys only this process's *temp* wav. The sidecar has
+//! already copied the take into the raw-audio store by the time it returns.
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -27,6 +35,9 @@ const Heavy = struct {
     out_dir: ?[]const u8 = null,
     transcript: ?[]const u8 = null,
     prompt_source: ?[]const u8 = null,
+    audio_uid: ?[]const u8 = null,
+    audio_path: ?[]const u8 = null,
+    audio_retained: bool = false,
 };
 
 const FileCfg = struct {
@@ -38,17 +49,24 @@ fn usage() void {
     std.debug.print(
         \\sesefus journal-clip (isolated)
         \\
-        \\  journal-clip                     speak → text → vault, then shred wav
+        \\  journal-clip                     speak → audio kept, text landed
         \\  journal-clip --seconds N         record length (default 10)
         \\  journal-clip --file path.wav     skip mic (does not delete source)
-        \\  journal-clip --say "text"        skip mic + whisper
+        \\  journal-clip --say "text"        skip mic + whisper (no audio product)
         \\  journal-clip --no-llm            skip 7B (tests)
         \\
         \\controls (persist in %USERPROFILE%\.sesefus\clip-config.json)
         \\  journal-clip change-dir [PATH]           output journal root
         \\  journal-clip change-input [INDEX]        capture device; omit to list
         \\  journal-clip change-prompt [FILE]        LLM / structure; --kind ID; --clear
+        \\  journal-clip change-audio [MODE]         archive (default) | shred
         \\  journal-clip status                      compile/run check (no record)
+        \\
+        \\three products under the journal root, three preservation rules
+        \\  audio/       raw wav      never overwritten
+        \\  transcript/  the words    a new version per transcription model
+        \\  semantics/   tags, gist   revisable model output, not ground truth
+        \\  takes.jsonl  flat view    a projection; rebuild with clip_store project
         \\
     , .{});
 }
@@ -297,6 +315,9 @@ fn runClip(
     const written = try writeJournal(allocator, io, parsed.value);
     defer allocator.free(written);
     std.debug.print("[clip] wrote {s}\n", .{written});
+    if (parsed.value.audio_retained) {
+        std.debug.print("[clip] kept audio {s}\n", .{parsed.value.audio_path orelse ""});
+    }
     if (parsed.value.prompt_source) |ps| {
         std.debug.print("[clip] prompt {s}\n", .{ps});
     }
@@ -319,6 +340,7 @@ pub fn main(init: std.process.Init) !void {
         if (std.mem.eql(u8, cmd, "change-dir") or
             std.mem.eql(u8, cmd, "change-input") or
             std.mem.eql(u8, cmd, "change-prompt") or
+            std.mem.eql(u8, cmd, "change-audio") or
             std.mem.eql(u8, cmd, "show"))
         {
             try forwardCtrl(allocator, io, env, args[1..]);

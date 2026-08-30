@@ -1,0 +1,218 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; background: #050509; font-family: "Segoe UI", system-ui, sans-serif; }
+    a { color: #9fe9f1; } a:hover { color: #7cf7ff; }
+  </style>
+</helmet>
+<div style="width: 520px; height: 680px; box-sizing: border-box; background: #050509; padding: 16px 18px; display: flex;">
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; border: 1px solid #272739;">
+
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px 0;">
+      <div style="display: flex; align-items: center; gap: 7px; color: #7cf7ff; font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace; font-size: 11px;">
+        <svg width="11" height="12" viewBox="0 0 11 12" fill="none"><path d="M5.5 0.8 10 3.4v5.2L5.5 11.2 1 8.6V3.4z" stroke="#7cf7ff" stroke-width="1"></path></svg>
+        <span>journal-clip &nbsp;/&nbsp; {{faceName}}</span>
+      </div>
+      <button onClick="{{flip}}" style="background: #101018; color: #a7a7bd; border: 1px solid #272739; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; padding: 4px 10px; cursor: pointer;">flip</button>
+    </div>
+
+    <div style="flex: 1; min-height: 0; padding: 12px 14px; display: flex;">
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; transform: scaleX({{scale}}); transform-origin: 50% 50%;">
+
+        <sc-if value="{{front}}" hint-placeholder-val="{{ true }}">
+        <div style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+
+          <div style="color: #a7a7bd; font-size: 12px; margin-bottom: 10px;">speak &#183; keep &#183; plate</div>
+
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <span style="color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">V:\ssfs-vault\journal</span>
+            <button style="margin-left: auto; background: #101018; color: #a7a7bd; border: 1px solid #272739; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; padding: 4px 10px; cursor: pointer;">change</button>
+          </div>
+
+          <div style="color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px;">input</div>
+          <div style="display: flex; align-items: center; gap: 8px; border: 1px solid #272739; background: #101018; padding: 6px 10px; margin-bottom: 4px;">
+            <span style="color: #e7e7f2; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">1 &#183; Maono USB Audio</span>
+            <svg width="9" height="6" viewBox="0 0 9 6" fill="none" style="margin-left: auto; flex: none;"><path d="M1 1.2 4.5 4.7 8 1.2" stroke="#7cf7ff" stroke-width="1.2"></path></svg>
+          </div>
+          <div style="color: #e2a24a; font-size: 12px; min-height: 16px; margin-bottom: 8px;"></div>
+
+          <div style="color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; margin-bottom: 8px;">record clicks &nbsp;1=30s &nbsp;2=60s &nbsp;3=90s &nbsp;4=120s &nbsp;&#183; stop sends early</div>
+
+          <div style="position: relative; margin-bottom: 8px;">
+            <svg width="454" height="72" viewBox="0 0 454 72" style="display: block; background: #0a0a10; border: 1px solid #272739;">
+              <line x1="0" y1="36" x2="454" y2="36" stroke="#17172a" stroke-width="1"></line>
+              <sc-for list="{{bars}}" as="b" hint-placeholder-count="112">
+              <rect x="{{b.x}}" y="{{b.y}}" width="2" height="{{b.h}}" fill="{{b.fill}}"></rect>
+              </sc-for>
+            </svg>
+            <span style="position: absolute; top: 6px; right: 8px; color: #7cf7ff; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px;">0:47</span>
+          </div>
+
+          <button style="background: #101018; color: #7cf7ff; border: 1px solid #7cf7ff; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 15px; font-weight: 700; padding: 10px; cursor: pointer; margin-bottom: 8px;">record &nbsp; 1&#8211;4 clicks</button>
+
+          <div style="flex: 1; min-height: 0; background: #0a0a10; border: 1px solid #272739; color: #f4f4fb; font-size: 16px; line-height: 1.45; padding: 10px 12px; overflow: auto; margin-bottom: 8px;">right word here, corrected</div>
+
+          <div style="height: 84px; background: #0a0a10; border: 1px solid #272739; color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; line-height: 1.55; padding: 6px 8px; overflow: auto;">
+            <sc-for list="{{log}}" as="l" hint-placeholder-count="4">
+            <div style="color: {{l.tone}};">{{l.text}}</div>
+            </sc-for>
+          </div>
+
+        </div>
+        </sc-if>
+
+        <sc-if value="{{back}}" hint-placeholder-val="{{ true }}">
+        <div style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+
+          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px;">
+            <span style="color: #a7a7bd; font-size: 12px;">ledger</span>
+            <span style="margin-left: auto; color: #7cf7ff; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 16px;">128</span>
+          </div>
+
+          <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+            <sc-for list="{{profiles}}" as="p" hint-placeholder-count="5">
+            <button onClick="{{p.pick}}" style="background: {{p.bg}}; color: {{p.fg}}; border: 1px solid {{p.line}}; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; padding: 3px 8px; cursor: pointer;">{{p.key}}</button>
+            </sc-for>
+            <span style="margin-left: auto; color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; align-self: center;">{{profileName}}</span>
+          </div>
+
+          <div style="flex: 1; min-height: 0; overflow: auto; background: #0a0a10; border: 1px solid #272739;">
+            <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+            <div>
+              <div style="display: flex; align-items: center; gap: 7px; padding: 5px 10px; background: #050509; border-bottom: 1px solid #17172a;">
+                <svg width="7" height="7" viewBox="0 0 7 7" fill="none"><path d="M1.5 1 5 3.5 1.5 6" stroke="#6c6c83" stroke-width="1"></path></svg>
+                <span style="color: #a7a7bd; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px;">{{g.name}}</span>
+                <span style="margin-left: auto; color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px;">{{g.n}}</span>
+              </div>
+              <sc-for list="{{g.rows}}" as="r" hint-placeholder-count="4">
+              <div style="display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px; align-items: baseline; height: 26px; padding: 0 10px 0 22px; border-bottom: 1px solid #17172a;">
+                <span style="color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px;">{{r.id}}</span>
+                <span style="color: #e7e7f2; font-size: 16px; line-height: 26px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{r.text}}</span>
+              </div>
+              </sc-for>
+            </div>
+            </sc-for>
+          </div>
+
+        </div>
+        </sc-if>
+
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"startFace":{"editor":"enum","options":["front","back"],"default":"front"}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { back: false, scale: 1, touched: false, profile: 'd' };
+    this._busy = false;
+    this._step = 0;
+    this.flip = this.flip.bind(this);
+    this.tick = this.tick.bind(this);
+  }
+  shown() {
+    if (this.state.touched) return this.state.back;
+    return (this.props.startFace ?? 'front') === 'back';
+  }
+  scaleAt(step, steps) {
+    const half = steps >> 1;
+    if (step <= 0 || step >= steps) return 1;
+    if (step < half) return Math.max(0.02, 1 - step / half);
+    if (step === half) return 0.02;
+    return Math.max(0.02, (step - half) / half);
+  }
+  flip() {
+    if (this._busy) return;
+    this._busy = true;
+    this._step = 0;
+    this.tick();
+  }
+  tick() {
+    const steps = 8;
+    const s = this._step;
+    if (s === (steps >> 1)) this.setState({ back: !this.shown(), touched: true });
+    this.setState({ scale: this.scaleAt(s, steps) });
+    if (s >= steps) { this._busy = false; this.setState({ scale: 1 }); return; }
+    this._step = s + 1;
+    setTimeout(this.tick, 16);
+  }
+  renderVals() {
+    const back = this.shown();
+    const bars = [];
+    for (let i = 0; i < 112; i++) {
+      const t = i / 111;
+      const env = Math.sin(t * Math.PI) * (0.55 + 0.45 * Math.sin(t * 19.4));
+      const live = i < 92;
+      const h = Math.max(2, Math.abs(env) * 62);
+      bars.push({
+        x: 4 + i * 4,
+        y: 36 - h / 2,
+        h: Math.round(h * 10) / 10,
+        fill: live ? '#28A2B2' : '#17172a'
+      });
+    }
+    const names = { d: 'day', i: 'interval', n: 'domain', g: 'intent', m: 'magnitude' };
+    const profiles = ['d', 'i', 'n', 'g', 'm'].map((k) => {
+      const on = k === this.state.profile;
+      return {
+        key: '.' + k,
+        bg: on ? '#17172a' : '#101018',
+        fg: on ? '#7cf7ff' : '#6c6c83',
+        line: on ? '#7cf7ff' : '#272739',
+        pick: () => this.setState({ profile: k })
+      };
+    });
+    return {
+      back: back,
+      front: !back,
+      scale: this.state.scale,
+      flip: this.flip,
+      faceName: back ? 'ledger' : 'this tower',
+      bars: bars,
+      log: [
+        { text: '— capture  dir=V:\\ssfs-vault\\journal  input=1  seconds=60', tone: '#6c6c83' },
+        { text: '— captured 47.3s  → whisper in-window', tone: '#6c6c83' },
+        { text: '— kept audio 20260830-145907-9f3c1a02', tone: '#4CAE7C' },
+        { text: '— wrote id 84  kind daily  (kind is a guess, editable)', tone: '#6c6c83' }
+      ],
+      profiles: profiles,
+      profileName: names[this.state.profile],
+      groups: [
+        {
+          name: 'today', n: '3',
+          rows: [
+            { id: '86', text: 'the shape of the week, out loud' },
+            { id: '85', text: 'a note about the archive order' },
+            { id: '84', text: 'right word here, corrected' }
+          ]
+        },
+        {
+          name: 'yesterday', n: '2',
+          rows: [
+            { id: '83', text: 'i dreamed the cabinet had four drawers' },
+            { id: '82', text: 'gratitude for the quiet morning' }
+          ]
+        },
+        {
+          name: '2026-08-28', n: '2',
+          rows: [
+            { id: '81', text: 'decide the retention default tomorrow' },
+            { id: '80', text: 'dump — everything left in the head' }
+          ]
+        }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

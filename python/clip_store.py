@@ -1,11 +1,20 @@
 #!/usr/bin/env python3
-"""Surface store for journal-clip.
+"""Surface store for journal-clip - the read view over three separate systems.
 
-Live store is a speech tape: takes.jsonl (one utterance per line).
-CSV twins (transcriptions.csv, ledger.csv) are imported if present, never
-deleted by this module, and are not written on new takes.
+The pipeline produces three data products with three different preservation
+rules, and they are kept in three different places:
+
+  1. raw audio          clip_audio.py       never overwrite
+  2. transcript         clip_transcript.py  version alongside the model
+  3. derived semantics  clip_semantics.py   revisable output, not ground truth
+
+`takes.jsonl` is no longer where anything lives. It is a **projection** -
+one flat line per take, rebuilt from systems 2 and 3 on every write, kept
+because the UIs and every outside reader already speak it. Delete it and
+`project()` builds it back. Delete a system and you have lost something.
 
 Ids are monotonic integers. Never reused. schema=1.
+CSV twins are imported if present, never deleted, never written.
 Ollama down still lands text.
 """
 from __future__ import annotations
@@ -19,11 +28,21 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import clip_audio
+import clip_semantics
+import clip_transcript
+
 SCHEMA = 1
 TAPE_NAME = "takes.jsonl"
 TRANS_NAME = "transcriptions.csv"
 LEDGER_NAME = "ledger.csv"
-KEEP = {TAPE_NAME, TRANS_NAME, LEDGER_NAME}
+# The three systems are never swept by purge(). Neither is the projection.
+SYSTEM_DIRS = {
+    clip_audio.AUDIO_DIR,
+    clip_transcript.TRANSCRIPT_DIR,
+    clip_semantics.SEMANTICS_DIR,
+}
+KEEP = {TAPE_NAME, TRANS_NAME, LEDGER_NAME} | SYSTEM_DIRS
 TRANS_FIELDS = ["date", "text"]
 LEDGER_FIELDS = [
     "id",
@@ -65,15 +84,6 @@ def _read_csv(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(f))
 
 
-def _write_csv(path: Path, fields: list[str], rows: list[dict[str, str]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
-        w.writeheader()
-        for row in rows:
-            w.writerow({k: row.get(k, "") for k in fields})
-
-
 def _ids(rows: list[dict[str, str]]) -> list[int]:
     ids: list[int] = []
     for r in rows:
@@ -85,9 +95,9 @@ def _ids(rows: list[dict[str, str]]) -> list[int]:
 
 
 def next_id(root: Path) -> int:
-    ensure_tape(root)
-    ids = _ids(_read_tape(tape_path(root)))
-    return (max(ids) + 1) if ids else 1
+    """Next take id. Owned by the transcript log - every take has a transcript."""
+    ensure(root)
+    return clip_transcript.next_take_id(root)
 
 
 def _normalize_take(obj: dict[str, Any]) -> dict[str, str]:
@@ -169,12 +179,6 @@ def _write_tape(path: Path, rows: list[dict[str, str]]) -> None:
     path.write_text(("\n".join(lines) + ("\n" if lines else "")), encoding="utf-8")
 
 
-def _append_tape_line(path: Path, row: dict[str, str]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(_take_obj(row), ensure_ascii=False) + "\n")
-
-
 def import_from_csv(root: Path | str) -> list[dict[str, str]]:
     """Union ledger.csv (machine twin) with transcriptions.csv (speech twin)."""
     root = Path(root)
@@ -208,16 +212,183 @@ def import_from_csv(root: Path | str) -> list[dict[str, str]]:
     return out
 
 
-def ensure_tape(root: Path | str) -> Path:
-    """Create takes.jsonl from CSV twins if the tape is missing. CSVs stay."""
+# --------------------------------------------------------------------------
+# projection: three systems -> one flat tape
+# --------------------------------------------------------------------------
+
+
+def _row_from_systems(
+    take_id: str,
+    transcript: dict[str, Any],
+    semantics: dict[str, Any] | None,
+    audio: dict[str, Any] | None,
+) -> dict[str, str]:
+    """Flatten one take across the three systems into a legacy tape row.
+
+    Nothing here is authoritative - it is a copy, and `extra.provenance`
+    says exactly which version and revision of which system it came from.
+    """
+    sem = semantics or {}
+    extra: dict[str, Any] = dict(sem.get("extra") or {})
+    inner = transcript.get("extra")
+    if isinstance(inner, dict):
+        for k, v in inner.items():
+            extra.setdefault(k, v)
+    degraded = sem.get("degraded") or []
+    if degraded:
+        extra["degraded"] = degraded
+    extra["provenance"] = {
+        "transcript_version": transcript.get("version"),
+        "transcript_model": transcript.get("model_id"),
+        "transcript_produced_by": transcript.get("produced_by"),
+        "semantics_revision": sem.get("revision"),
+        "semantics_ground_truth": False,
+        "audio_uid": (audio or {}).get("uid") or transcript.get("audio_uid") or "",
+        "audio_sha256": (audio or {}).get("sha256") or "",
+    }
+    text = str(transcript.get("text") or "")
+    return {
+        "id": take_id,
+        "date": str(transcript.get("date") or ""),
+        "time": str(transcript.get("time") or ""),
+        "kind": str(sem.get("kind") or "dump"),
+        "score": str(sem.get("score") if sem.get("score") is not None else 0.0),
+        "text": text,
+        "structured": str(sem.get("structured") or text),
+        "source": str(transcript.get("source") or "clip"),
+        "schema": str(SCHEMA),
+        "extra": json.dumps(extra, ensure_ascii=False),
+    }
+
+
+def _sort_key(take_id: str) -> tuple[int, int, str]:
+    try:
+        return (0, int(take_id), "")
+    except ValueError:
+        return (1, 0, take_id)
+
+
+def compose(root: Path | str) -> list[dict[str, str]]:
+    """Read the three systems and return the flat take view. No writes."""
+    root = Path(root)
+    transcripts = clip_transcript.latest_by_take(root)
+    if not transcripts:
+        return []
+    semantics = clip_semantics.latest_by_take(root)
+    audio = {
+        str(r.get("take_id") or ""): r
+        for r in clip_audio.list_audio(root)
+        if str(r.get("take_id") or "")
+    }
+    rows: list[dict[str, str]] = []
+    for take_id in sorted(transcripts, key=_sort_key):
+        rows.append(
+            _row_from_systems(
+                take_id,
+                transcripts[take_id],
+                semantics.get(take_id),
+                audio.get(take_id),
+            )
+        )
+    return rows
+
+
+def project(root: Path | str) -> Path:
+    """Rebuild takes.jsonl from the three systems. Cheap, and always safe."""
     root = Path(root)
     path = tape_path(root)
-    if path.is_file():
-        return path
-    rows = import_from_csv(root)
-    if rows:
-        _write_tape(path, rows)
+    _write_tape(path, compose(root))
     return path
+
+
+# --------------------------------------------------------------------------
+# migration: one flat tape -> three systems
+# --------------------------------------------------------------------------
+
+
+def _adopt_legacy(root: Path, rows: list[dict[str, str]]) -> int:
+    """Split old flat rows across the three systems. Audio is simply absent.
+
+    A migrated transcript is honest about its provenance: engine "import",
+    no model name, because nobody recorded which Whisper produced it.
+    """
+    n = 0
+    for row in rows:
+        text = str(row.get("text") or "").strip()
+        if not text:
+            continue
+        take_id = str(row.get("id") or "").strip() or str(n + 1)
+        day = str(row.get("date") or "") or datetime.now().strftime("%Y-%m-%d")
+        clock = str(row.get("time") or "") or "00:00:00"
+        try:
+            when = datetime.strptime(f"{day} {clock}", "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            when = datetime.now()
+        extra: Any = row.get("extra") or "{}"
+        if isinstance(extra, str):
+            try:
+                extra = json.loads(extra) if extra.strip().startswith("{") else {}
+            except json.JSONDecodeError:
+                extra = {}
+        if not isinstance(extra, dict):
+            extra = {}
+        source = str(row.get("source") or "clip")
+        clip_transcript.append_version(
+            root,
+            take_id,
+            text,
+            engine=clip_transcript.IMPORTED,
+            model=str(extra.get("whisper_model") or ""),
+            source=source,
+            when=when,
+            extra={**extra, "migrated_from": TAPE_NAME},
+        )
+        try:
+            score = float(row.get("score") or 0.0)
+        except (TypeError, ValueError):
+            score = 0.0
+        clip_semantics.append_revision(
+            root,
+            take_id,
+            transcript_version=1,
+            kind=str(row.get("kind") or "dump"),
+            score=score,
+            structured=str(row.get("structured") or text),
+            embed_model=str(extra.get("embed_model") or ""),
+            chat_model=str(extra.get("chat_model") or ""),
+            prompt_source=str(extra.get("prompt_source") or ""),
+            degraded=extra.get("degraded") or [],
+            when=when,
+            extra={"migrated_from": TAPE_NAME},
+        )
+        n += 1
+    return n
+
+
+def ensure(root: Path | str) -> Path:
+    """Make the three systems real, migrating a legacy tape or CSVs once.
+
+    Idempotent: once transcripts.jsonl exists, this does nothing.
+    """
+    root = Path(root)
+    root.mkdir(parents=True, exist_ok=True)
+    if clip_transcript.log_path(root).is_file():
+        return tape_path(root)
+    legacy = _read_tape(tape_path(root)) or import_from_csv(root)
+    if legacy:
+        _adopt_legacy(root, legacy)
+        project(root)
+    return tape_path(root)
+
+
+def ensure_tape(root: Path | str) -> Path:
+    """Back-compat alias. The tape is a projection now; the systems are the store."""
+    return ensure(root)
+
+
+# --------------------------------------------------------------------------
+# writes
+# --------------------------------------------------------------------------
 
 
 def append(
@@ -230,61 +401,128 @@ def append(
     source: str = "clip",
     extra: dict[str, Any] | None = None,
     when: datetime | None = None,
+    audio_uid: str = "",
+    engine: str = clip_transcript.MACHINE,
+    model: str = "",
+    segments: list[dict[str, Any]] | None = None,
+    language: str = "",
+    tags: list[str] | None = None,
+    embedding: list[float] | None = None,
+    embed_model: str = "",
+    chat_model: str = "",
+    prompt_source: str = "",
+    inferred: dict[str, Any] | None = None,
+    degraded: list[str] | None = None,
 ) -> dict[str, str]:
-    """Append one take. Empty text is refused (useless)."""
+    """Land one take across all three systems. Empty text is refused (useless).
+
+    Writes transcript v1 (system 2) and semantics r1 (system 3), binds any
+    already-archived audio (system 1) to the new id, then reprojects.
+    """
     text = (text or "").strip()
     if not text:
-        raise ValueError("empty text — not stored")
+        raise ValueError("empty text - not stored")
     root = _root(root)
+    ensure(root)
     when = when or datetime.now()
-    nid = next_id(root)
-    day = when.strftime("%Y-%m-%d")
-    clock = when.strftime("%H:%M:%S")
-    row = {
-        "id": str(nid),
-        "date": day,
-        "time": clock,
-        "kind": kind or "dump",
-        "score": str(score),
-        "text": text,
-        "structured": structured or text,
-        "source": source,
-        "schema": str(SCHEMA),
-        "extra": json.dumps(extra or {}, ensure_ascii=False),
-    }
-    _append_tape_line(tape_path(root), row)
+    take_id = str(clip_transcript.next_take_id(root))
+
+    tv = clip_transcript.append_version(
+        root,
+        take_id,
+        text,
+        engine=engine,
+        model=model,
+        audio_uid=audio_uid,
+        segments=segments,
+        language=language,
+        source=source,
+        when=when,
+        extra=extra,
+    )
+    clip_semantics.append_revision(
+        root,
+        take_id,
+        transcript_version=int(tv["version"]),
+        kind=kind,
+        score=score,
+        structured=structured or text,
+        tags=tags,
+        embedding=embedding,
+        embed_model=embed_model,
+        chat_model=chat_model,
+        prompt_source=prompt_source,
+        inferred=inferred,
+        degraded=degraded,
+        when=when,
+    )
+    if audio_uid:
+        clip_audio.bind_take(root, audio_uid, take_id)
+    project(root)
+    row = next((r for r in compose(root) if r["id"] == take_id), None)
+    if row is None:  # unreachable unless a system was deleted mid-write
+        raise RuntimeError(f"take {take_id} did not compose after write")
     return row
 
 
 def list_takes(root: Path | str) -> list[dict[str, str]]:
-    """Tape rows in file order. Imports CSV twins once if the tape is missing."""
+    """Flat take view, oldest id first. Migrates a legacy tape or CSVs once."""
     root = Path(root)
-    ensure_tape(root)
-    return _read_tape(tape_path(root))
+    ensure(root)
+    return compose(root)
 
 
 def update_text(root: Path | str, take_id: str, text: str) -> dict[str, str]:
-    """Replace transcription text for one id. Empty refused. Kind is not retouched."""
+    """Correct a transcript. Appends a version; the model's reading is kept.
+
+    Kind is never retouched - that is system 3's business. What happens to
+    the semantics depends on whether they were ever really inferred:
+
+    * `structured` was only a mirror of the transcript (no 7B ran) - a new
+      revision mirrors the corrected text, because nothing was interpreted.
+    * `structured` is genuine model output - it is left exactly as it was,
+      still pointing at the version it was derived from, so that
+      `clip_semantics.stale()` reports it as owed a recompute.
+
+    Either way the old transcript stays in system 2 and no interpretation
+    is silently rewritten to look like it had read the new text.
+    """
     text = (text or "").strip()
     if not text:
-        raise ValueError("empty text — not stored")
+        raise ValueError("empty text - not stored")
     root = Path(root)
-    ensure_tape(root)
+    ensure(root)
     wanted = str(take_id).strip()
-    rows = _read_tape(tape_path(root))
-    idx = next(
-        (i for i, r in enumerate(rows) if str(r.get("id") or "").strip() == wanted),
-        None,
-    )
-    if idx is None:
+    before = clip_transcript.latest(root, wanted)
+    if before is None:
         raise ValueError(f"no take id {wanted}")
-    old = rows[idx].get("text") or ""
-    rows[idx]["text"] = text
-    structured = rows[idx].get("structured") or ""
-    if structured.strip() == old.strip() or not structured.strip():
-        rows[idx]["structured"] = text
-    _write_tape(tape_path(root), rows)
-    return rows[idx]
+    old_text = str(before.get("text") or "").strip()
+    after = clip_transcript.update(root, wanted, text, source=clip_transcript.HUMAN)
+
+    sem = clip_semantics.latest(root, wanted)
+    if sem is not None:
+        structured = str(sem.get("structured") or "").strip()
+        if not structured or structured == old_text:
+            # Never interpreted - a mirror can follow the correction freely.
+            clip_semantics.append_revision(
+                root,
+                wanted,
+                transcript_version=int(after["version"]),
+                kind=str(sem.get("kind") or "dump"),
+                score=float(sem.get("score") or 0.0),
+                structured=text,
+                summary=str(sem.get("summary") or ""),
+                tags=sem.get("tags") or [],
+                embed_model=str(sem.get("embed_model") or ""),
+                chat_model=str(sem.get("chat_model") or ""),
+                prompt_source=str(sem.get("prompt_source") or ""),
+                extra={"restated_after": "transcript-correction"},
+            )
+    project(root)
+    row = next((r for r in compose(root) if r["id"] == wanted), None)
+    if row is None:
+        raise ValueError(f"no take id {wanted}")
+    return row
 
 
 def _stamp_date(name: str) -> str:
@@ -364,6 +602,7 @@ def harvest(root: Path | str) -> list[dict[str, str]]:
                 text=text,
                 kind="dump",
                 source="harvest",
+                engine=clip_transcript.IMPORTED,
                 extra=extra,
                 when=when,
             )
@@ -372,7 +611,7 @@ def harvest(root: Path | str) -> list[dict[str, str]]:
 
 
 def purge(root: Path | str) -> list[str]:
-    """Delete everything under root except the tape and any leftover CSVs."""
+    """Delete everything under root except the three systems, the tape, and CSVs."""
     root = Path(root)
     removed: list[str] = []
     if not root.is_dir():
@@ -392,8 +631,45 @@ def purge(root: Path | str) -> list[str]:
     return removed
 
 
+def systems_status(root: Path | str) -> dict[str, Any]:
+    """One glance at all three products and whether their rules still hold."""
+    root = Path(root)
+    ensure(root)
+    transcripts = clip_transcript.latest_by_take(root)
+    versions = {t: int(r.get("version") or 0) for t, r in transcripts.items()}
+    kept = clip_audio.clips(root)
+    return {
+        "root": str(root),
+        "raw_audio": {
+            "rule": "never overwrite",
+            "clips": len(kept),
+            "bytes": sum(int(r.get("bytes") or 0) for r in kept),
+            "integrity": clip_audio.verify(root) or "intact",
+        },
+        "transcript": {
+            "rule": "version alongside transcription model",
+            "takes": len(transcripts),
+            "versions": len(clip_transcript.all_versions(root)),
+            "transcription_models": clip_transcript.models_used(root),
+            "read_by": clip_transcript.producers_used(root),
+        },
+        "derived_semantics": {
+            "rule": "revisable model output, not ground truth",
+            "ground_truth": False,
+            "revisions": len(clip_semantics.all_revisions(root)),
+            "models": clip_semantics.models_used(root),
+            "stale": clip_semantics.stale(root, versions),
+        },
+        "projection": {
+            "file": TAPE_NAME,
+            "rule": "rebuildable - holds nothing of its own",
+            "rows": len(compose(root)),
+        },
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="journal-clip speech tape store")
+    ap = argparse.ArgumentParser(description="journal-clip take view over the three systems")
     sub = ap.add_subparsers(dest="cmd", required=True)
     h = sub.add_parser("harvest")
     h.add_argument("--root", required=True)
@@ -410,6 +686,10 @@ def main(argv: list[str] | None = None) -> int:
     u.add_argument("--text", required=True)
     p = sub.add_parser("purge")
     p.add_argument("--root", required=True)
+    r = sub.add_parser("project", help="rebuild takes.jsonl from the three systems")
+    r.add_argument("--root", required=True)
+    s = sub.add_parser("status", help="all three products and their preservation rules")
+    s.add_argument("--root", required=True)
     args = ap.parse_args(argv)
     if args.cmd == "harvest":
         rows = harvest(args.root)
@@ -435,6 +715,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "purge":
         gone = purge(args.root)
         print(f"purged {len(gone)}")
+        return 0
+    if args.cmd == "project":
+        print(project(args.root))
+        return 0
+    if args.cmd == "status":
+        print(json.dumps(systems_status(args.root), indent=2, default=str))
         return 0
     return 1
 

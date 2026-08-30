@@ -13,11 +13,18 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# Raw audio is the one product in the pipeline that cannot be regenerated,
+# so "archive" is the default: the wav is copied into the immutable audio
+# store (clip_audio.py) before the temp copy is shredded. "shred" keeps the
+# older behaviour - text lands, the sound is gone.
+AUDIO_RETENTIONS = ("archive", "shred")
+
 DEFAULTS: dict[str, Any] = {
     "out_dir": "",
     "input_index": 0,
     "prompt_file": "",
     "prompt_overrides": {},
+    "audio_retention": "archive",
 }
 
 
@@ -59,6 +66,8 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
                     cfg["prompt_overrides"] = {
                         str(k): str(v) for k, v in ov.items() if isinstance(v, str)
                     }
+                if data.get("audio_retention") in AUDIO_RETENTIONS:
+                    cfg["audio_retention"] = data["audio_retention"]
         except (OSError, json.JSONDecodeError):
             pass
     return cfg
@@ -67,14 +76,22 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
 def save_config(cfg: dict[str, Any], path: Path | None = None) -> Path:
     p = path or config_path()
     p.parent.mkdir(parents=True, exist_ok=True)
+    retention = str(cfg.get("audio_retention") or "")
     body = {
         "out_dir": str(cfg.get("out_dir") or ""),
         "input_index": int(cfg.get("input_index") or 0),
         "prompt_file": str(cfg.get("prompt_file") or ""),
         "prompt_overrides": dict(cfg.get("prompt_overrides") or {}),
+        "audio_retention": retention if retention in AUDIO_RETENTIONS else "archive",
     }
     p.write_text(json.dumps(body, indent=2) + "\n", encoding="utf-8")
     return p
+
+
+def keeps_audio(cfg: dict[str, Any] | None = None) -> bool:
+    """True when raw audio is preserved (system 1) rather than only shredded."""
+    cfg = cfg if cfg is not None else load_config()
+    return str(cfg.get("audio_retention") or "archive") != "shred"
 
 
 def resolved_out_dir(cfg: dict[str, Any] | None = None) -> Path:
@@ -196,6 +213,20 @@ def cmd_change_prompt(path: str | None, *, kind: str | None, clear: bool) -> str
     return f"prompt_file={p}"
 
 
+def cmd_change_audio(mode: str | None) -> str:
+    cfg = load_config()
+    if not mode:
+        return f"audio_retention={cfg.get('audio_retention') or 'archive'}"
+    mode = mode.strip().lower()
+    if mode not in AUDIO_RETENTIONS:
+        raise SystemExit(f"audio_retention must be one of {AUDIO_RETENTIONS}, got {mode!r}")
+    cfg["audio_retention"] = mode
+    save_config(cfg)
+    if mode == "shred":
+        return "audio_retention=shred  (raw audio will NOT be preserved)"
+    return "audio_retention=archive  (raw audio preserved under <out_dir>/audio, never overwritten)"
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="journal-clip controls")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -207,6 +238,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("path", nargs="?")
     p.add_argument("--kind", default=None, help="only this prototype id")
     p.add_argument("--clear", action="store_true")
+    au = sub.add_parser("change-audio", help="archive (keep raw audio) or shred (text only)")
+    au.add_argument("mode", nargs="?", choices=list(AUDIO_RETENTIONS))
     sub.add_parser("show")
     args = ap.parse_args(argv)
     if args.cmd == "change-dir":
@@ -215,6 +248,8 @@ def main(argv: list[str] | None = None) -> int:
         print(cmd_change_input(args.index))
     elif args.cmd == "change-prompt":
         print(cmd_change_prompt(args.path, kind=args.kind, clear=args.clear))
+    elif args.cmd == "change-audio":
+        print(cmd_change_audio(args.mode))
     elif args.cmd == "show":
         cfg = load_config()
         print(json.dumps({**cfg, "resolved_out_dir": str(resolved_out_dir(cfg))}, indent=2))

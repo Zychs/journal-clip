@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
 """Out-of-process heavy steps for journal-clip.
 
-Whisper → nomic-embed-text (text only) → cosine vs ≤8 prototypes → local 7B.
+Three products come out of one take, and they are produced in that order:
 
-Prints JSON. Does not write the journal. Does not delete the wav.
-Zig owns record / write / shred.
+  1. raw audio     archive the wav first, before anything can go wrong
+  2. transcript    Whisper, tagged with the model that produced it
+  3. semantics     nomic-embed-text → cosine vs ≤8 prototypes → local 7B
+
+Step 1 runs before step 2 on purpose. The audio is the only irreplaceable
+artifact, so it is preserved even if Whisper crashes on the next line.
+
+Prints JSON. Does not delete the wav - the caller's temp copy is shredded
+after this returns, by which time the archived copy already exists.
+Zig owns record / shred.
 
 Local only. No paid APIs.
 """
@@ -20,7 +28,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Callable
 
-from clip_config import load_config, resolve_system_prompt, resolved_out_dir
+import clip_audio
+from clip_config import keeps_audio, load_config, resolve_system_prompt, resolved_out_dir
 from clip_store import append as store_append
 
 HERE = Path(__file__).resolve().parent
@@ -47,7 +56,10 @@ def cosine(a: list[float], b: list[float]) -> float:
         dot += x * y
         na += x * x
         nb += y * y
-    if na <= 0.0 or nb <= 0.0:
+    # A tiny vector is an absent/degenerate embedding, not evidence that two
+    # texts are semantically identical.  Without this floor, e.g. two
+    # near-zero fallback vectors normalize to a misleading cosine of 1.0.
+    if na <= 1e-3 or nb <= 1e-3:
         return 0.0
     return dot / math.sqrt(na * nb)
 
@@ -75,12 +87,44 @@ def embed_texts(texts: list[str], model: str) -> list[list[float]]:
     return embs
 
 
-def transcribe_wav(wav_path: Path, whisper_model: str) -> str:
+def transcribe_wav(wav_path: Path, whisper_model: str) -> dict[str, Any]:
+    """Whisper's full reading: text plus its own segmentation and language.
+
+    Segments are the seed of the diarization record - kept in system 2
+    beside the text they came from, not flattened away into it.
+    """
     import whisper  # heavy; local weights
 
     model = whisper.load_model(whisper_model)
     result = model.transcribe(str(wav_path))
-    return str(result.get("text") or "").strip()
+    segments = []
+    for seg in result.get("segments") or []:
+        if not isinstance(seg, dict):
+            continue
+        segments.append(
+            {
+                "start": seg.get("start"),
+                "end": seg.get("end"),
+                "speaker": "",  # no diarizer yet; the slot is the point
+                "text": str(seg.get("text") or "").strip(),
+            }
+        )
+    return {
+        "text": str(result.get("text") or "").strip(),
+        "segments": segments,
+        "language": str(result.get("language") or ""),
+    }
+
+
+def _as_reading(got: Any) -> dict[str, Any]:
+    """Accept a plain string or a full reading from any transcribe_fn."""
+    if isinstance(got, dict):
+        return {
+            "text": str(got.get("text") or "").strip(),
+            "segments": list(got.get("segments") or []),
+            "language": str(got.get("language") or ""),
+        }
+    return {"text": str(got or "").strip(), "segments": [], "language": ""}
 
 
 def pick_kind(
@@ -139,7 +183,7 @@ def run(
     no_llm: bool = False,
     embed_fn: Callable[[list[str]], list[list[float]]] | None = None,
     structure_fn: Callable[[str, str, str], str] | None = None,
-    transcribe_fn: Callable[[Path, str], str] | None = None,
+    transcribe_fn: Callable[[Path, str], Any] | None = None,
     config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     spec = load_prototypes(proto_path)
@@ -152,20 +196,46 @@ def run(
         spec.get("whisper_model") or "base"
     )
     cfg = config if config is not None else load_config()
+    out_root = resolved_out_dir(cfg)
+    live = config is None  # a caller-supplied config means "compute, don't store"
 
+    # ---- system 1: raw audio -------------------------------------------
+    # First, and before Whisper can fail. Never overwrites; re-archiving the
+    # same bytes is a no-op. A failure here degrades the take, it does not
+    # sink it - text still lands.
+    audio_uid = ""
+    audio_row: dict[str, Any] = {}
+    degraded: list[str] = []
+    retain = keeps_audio(cfg)
+    if wav is not None and live and retain:
+        try:
+            audio_row = clip_audio.archive(
+                out_root,
+                wav,
+                device_index=int(cfg.get("input_index") or 0),
+                source="clip",
+            )
+            audio_uid = str(audio_row.get("uid") or "")
+        except Exception as e:
+            degraded.append(f"audio:{e}")
+
+    # ---- system 2: transcript ------------------------------------------
     if text is not None and text.strip():
-        transcript = text.strip()
+        reading = {"text": text.strip(), "segments": [], "language": ""}
+        engine, engine_model = "typed", ""
     elif wav is not None:
         tfn = transcribe_fn or transcribe_wav
-        transcript = tfn(wav, whisper_model)
+        reading = _as_reading(tfn(wav, whisper_model))
+        engine, engine_model = "whisper", whisper_model
     else:
         raise SystemExit("need --wav or --text")
 
+    transcript = reading["text"]
     if not transcript:
         raise RuntimeError("empty transcript")
 
+    # ---- system 3: derived semantics ------------------------------------
     efn = embed_fn or (lambda ts: embed_texts(ts, embed_model))
-    degraded: list[str] = []
     try:
         kind, score = pick_kind(transcript, kinds, efn)
     except Exception as e:
@@ -189,10 +259,9 @@ def run(
             degraded.append(f"llm:{e}")
             prompt_source = "degraded:raw-transcript"
 
-    out_root = resolved_out_dir(cfg)
     dest_rel = "takes.jsonl"
     stored_id = ""
-    if config is None:
+    if live:
         stored = store_append(
             out_root,
             text=transcript,
@@ -200,6 +269,15 @@ def run(
             score=score,
             structured=structured,
             source="clip",
+            audio_uid=audio_uid,
+            engine=engine,
+            model=engine_model,
+            segments=reading["segments"],
+            language=reading["language"],
+            embed_model=embed_model,
+            chat_model=chat_model,
+            prompt_source=prompt_source,
+            degraded=degraded,
             extra={"degraded": degraded} if degraded else {},
         )
         stored_id = stored["id"]
@@ -220,6 +298,16 @@ def run(
         "input_index": int(cfg.get("input_index") or 0),
         "id": stored_id,
         "degraded": degraded,
+        # what each of the three systems produced for this take
+        "audio_uid": audio_uid,
+        "audio_path": str(audio_row.get("path") or ""),
+        "audio_sha256": str(audio_row.get("sha256") or ""),
+        "audio_retained": bool(audio_uid),
+        "transcript_engine": engine,
+        "transcript_model": engine_model,
+        "segments": len(reading["segments"]),
+        "language": reading["language"],
+        "semantics_ground_truth": False,
     }
 
 

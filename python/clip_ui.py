@@ -295,6 +295,8 @@ def write_session_config(
         "input_index": int(input_index),
         "prompt_file": str(src.get("prompt_file") or ""),
         "prompt_overrides": dict(src.get("prompt_overrides") or {}),
+        # carried through so a session cannot silently stop preserving audio
+        "audio_retention": str(src.get("audio_retention") or "archive"),
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(body, indent=2) + "\n", encoding="utf-8")
@@ -508,7 +510,7 @@ class ClipUi:
         self.face_front = front
         self.face_back = back
 
-        ttk.Label(front, text="speak · plate · shred", style="Soft.TLabel").pack(anchor="w", pady=(0, 10))
+        ttk.Label(front, text="speak · keep · plate", style="Soft.TLabel").pack(anchor="w", pady=(0, 10))
 
         dirrow = ttk.Frame(front)
         dirrow.pack(fill=tk.X, pady=(0, 8))
@@ -962,6 +964,8 @@ class ClipUi:
         except Exception as e:
             err = str(e)
         finally:
+            # heavy_run has already copied the take into the raw-audio store,
+            # so only this scratch copy is destroyed.
             shred_temp(wav)
         noise = buf.getvalue().strip()
         if noise:
@@ -986,7 +990,9 @@ class ClipUi:
         take_id = str(result.get("id") or "")
         kind = str(result.get("kind") or "dump")
         degraded = result.get("degraded") or []
-        self.log_q.put(f"— wrote id {take_id}  kind {kind}")
+        if result.get("audio_retained"):
+            self.log_q.put(f"— kept audio {result.get('audio_uid')}  {result.get('audio_path')}")
+        self.log_q.put(f"— wrote id {take_id}  kind {kind}  (kind is a guess, editable)")
         self.root.after(0, lambda: self._show_take(text, take_id, kind, list(degraded)))
 
     def _show_take(self, text: str, take_id: str, kind: str, degraded: list[str]) -> None:

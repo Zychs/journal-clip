@@ -1,0 +1,147 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; background: #050509; font-family: "Segoe UI", system-ui, sans-serif; }
+    a { color: #9fe9f1; } a:hover { color: #7cf7ff; }
+  </style>
+</helmet>
+<div style="width: 360px; height: 680px; box-sizing: border-box; background: #050509; padding: 16px 18px; display: flex;">
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; border: 1px solid #272739;">
+
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px 0;">
+      <div style="display: flex; align-items: center; gap: 7px; color: #7cf7ff; font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace; font-size: 11px;">
+        <svg width="11" height="12" viewBox="0 0 11 12" fill="none"><path d="M5.5 0.8 10 3.4v5.2L5.5 11.2 1 8.6V3.4z" stroke="#7cf7ff" stroke-width="1"></path></svg>
+        <span>journal-clip &nbsp;/&nbsp; cabinet</span>
+      </div>
+      <span style="color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px;">3 drawers</span>
+    </div>
+
+    <div style="flex: 1; min-height: 0; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;">
+
+      <sc-for list="{{drawers}}" as="d" hint-placeholder-count="3">
+      <div style="flex: {{d.grow}} 0 auto; min-height: 0; display: flex; flex-direction: column; border: 1px solid {{d.line}}; background: #0a0a10;">
+
+        <button onClick="{{d.pull}}" style="display: flex; flex-direction: column; gap: 8px; background: {{d.faceBg}}; border: 0; border-bottom: 1px solid {{d.line}}; padding: 11px 12px 10px; cursor: pointer; text-align: left; width: 100%;">
+          <div style="display: flex; align-items: center; gap: 8px; width: 100%;">
+            <span style="border: 1px solid {{d.line}}; color: {{d.fg}}; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; padding: 2px 7px;">{{d.tag}}</span>
+            <span style="margin-left: auto; color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px;">{{d.count}}</span>
+          </div>
+          <div style="color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; width: 100%;">{{d.rule}}</div>
+          <svg width="60" height="7" viewBox="0 0 60 7" style="display: block; margin: 1px auto 0;">
+            <rect x="0.5" y="0.5" width="59" height="6" rx="3" fill="#050509" stroke="{{d.line}}" stroke-width="1"></rect>
+          </svg>
+        </button>
+
+        <sc-if value="{{d.open}}" hint-placeholder-val="{{ true }}">
+        <div style="flex: 1; min-height: 0; overflow: auto; background: #050509; box-shadow: inset 0 3px 6px rgba(0,0,0,0.6);">
+          <sc-for list="{{d.rows}}" as="r" hint-placeholder-count="7">
+          <div onClick="{{r.pick}}" style="display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 6px 11px; border-bottom: 1px solid #17172a; background: {{r.bg}}; cursor: pointer;">
+            <span style="color: {{r.idTone}}; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px;">{{r.id}}</span>
+            <span style="color: {{r.tone}}; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{r.main}}</span>
+            <span style="color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px;">{{r.tail}}</span>
+          </div>
+          </sc-for>
+        </div>
+        </sc-if>
+
+      </div>
+      </sc-for>
+
+      <div style="border-top: 1px solid #272739; padding-top: 9px; display: flex; flex-direction: column; gap: 3px;">
+        <div style="color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px;">take {{sel.id}} &#183; one take, three drawers</div>
+        <sc-for list="{{sel.lines}}" as="l" hint-placeholder-count="3">
+        <div style="display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 8px;">
+          <span style="color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px;">{{l.key}}</span>
+          <span style="color: {{l.tone}}; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{l.val}}</span>
+        </div>
+        </sc-for>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"openDrawer":{"editor":"enum","options":["audio","transcript","semantics"],"default":"transcript"}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { open: null, sel: '84' };
+  }
+  openKey() {
+    return this.state.open ?? (this.props.openDrawer ?? 'transcript');
+  }
+  renderVals() {
+    const open = this.openKey();
+    const sel = this.state.sel;
+    const takes = [
+      { id: '86', uid: '20260830-151204-4c1180ff', sec: '38.2s', bytes: '1.2 MB', v: '1', model: 'whisper:base', by: 'whisper', text: 'the shape of the week, out loud', r: '1', kind: 'plan', score: '0.61', stale: false },
+      { id: '85', uid: '20260830-150118-b9a3e720', sec: '52.7s', bytes: '1.7 MB', v: '1', model: 'whisper:base', by: 'whisper', text: 'a note about the archive order', r: '1', kind: 'technical', score: '0.55', stale: false },
+      { id: '84', uid: '20260830-145907-9f3c1a02', sec: '61.0s', bytes: '1.9 MB', v: '2', model: 'whisper:base', by: 'human', text: 'right word here, corrected', r: '1', kind: 'daily', score: '0.48', stale: true },
+      { id: '83', uid: '20260830-144330-71ce0d5a', sec: '29.4s', bytes: '0.9 MB', v: '1', model: 'whisper:large-v3', by: 'whisper', text: 'i dreamed the cabinet had four drawers', r: '2', kind: 'dream', score: '0.83', stale: false },
+      { id: '82', uid: '20260830-143902-2f66ab14', sec: '44.8s', bytes: '1.4 MB', v: '1', model: 'whisper:base', by: 'whisper', text: 'gratitude for the quiet morning', r: '1', kind: 'gratitude', score: '0.72', stale: false },
+      { id: '81', uid: '20260829-221715-cc04d938', sec: '35.1s', bytes: '1.1 MB', v: '1', model: 'whisper:base', by: 'whisper', text: 'decide the retention default tomorrow', r: '1', kind: 'decision', score: '0.66', stale: false },
+      { id: '80', uid: '20260829-214402-a7d51e83', sec: '48.6s', bytes: '1.5 MB', v: '1', model: 'whisper:base', by: 'whisper', text: 'dump — everything left in the head', r: '1', kind: 'dump', score: '0.21', stale: false }
+    ];
+    const pickRow = (t) => () => this.setState({ sel: t.id });
+    const mk = (t, main, tail, tone) => ({
+      id: t.id,
+      main: main,
+      tail: tail,
+      tone: t.id === sel ? '#f4f4fb' : tone,
+      idTone: t.id === sel ? '#7cf7ff' : '#6c6c83',
+      bg: t.id === sel ? '#17172a' : '#050509',
+      pick: pickRow(t)
+    });
+    const specs = [
+      {
+        key: 'audio', tag: 'raw audio', rule: 'never overwrite', count: '128 · 61.4 MB',
+        rows: takes.map((t) => mk(t, t.uid, t.sec, '#a7a7bd'))
+      },
+      {
+        key: 'transcript', tag: 'transcript', rule: 'versioned by model', count: '128 · 141 v',
+        rows: takes.map((t) => mk(t, t.text, 'v' + t.v, '#a7a7bd'))
+      },
+      {
+        key: 'semantics', tag: 'semantics', rule: 'revisable, not truth', count: '141 rev · 6 stale',
+        rows: takes.map((t) => mk(t, t.kind + '  ' + t.score, t.stale ? 'stale' : 'r' + t.r, t.stale ? '#e2a24a' : '#a7a7bd'))
+      }
+    ];
+    const drawers = specs.map((s) => {
+      const isOpen = s.key === open;
+      return {
+        tag: s.tag,
+        rule: s.rule,
+        count: s.count,
+        rows: s.rows,
+        open: isOpen,
+        grow: isOpen ? 1 : 0,
+        line: isOpen ? '#28A2B2' : '#272739',
+        fg: isOpen ? '#7cf7ff' : '#a7a7bd',
+        faceBg: isOpen ? '#101018' : '#0a0a10',
+        pull: () => this.setState({ open: s.key })
+      };
+    });
+    const t = takes.find((x) => x.id === sel) || takes[0];
+    return {
+      drawers: drawers,
+      sel: {
+        id: t.id,
+        lines: [
+          { key: 'audio', val: t.uid + ' · ' + t.bytes, tone: '#a7a7bd' },
+          { key: 'text', val: 'v' + t.v + ' · ' + t.model + ' · ' + t.by, tone: '#a7a7bd' },
+          { key: 'reading', val: 'r' + t.r + ' · ' + t.kind + (t.stale ? ' · owed a recompute' : ''), tone: t.stale ? '#e2a24a' : '#a7a7bd' }
+        ]
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

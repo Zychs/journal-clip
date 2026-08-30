@@ -1,0 +1,243 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; background: #050509; font-family: "Segoe UI", system-ui, sans-serif; }
+    a { color: #9fe9f1; } a:hover { color: #7cf7ff; }
+  </style>
+</helmet>
+<div style="width: 520px; height: 680px; box-sizing: border-box; background: #050509; padding: 16px 18px; display: flex;">
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; border: 1px solid #272739;">
+
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px 0;">
+      <div style="display: flex; align-items: center; gap: 7px; color: #7cf7ff; font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace; font-size: 11px;">
+        <svg width="11" height="12" viewBox="0 0 11 12" fill="none"><path d="M5.5 0.8 10 3.4v5.2L5.5 11.2 1 8.6V3.4z" stroke="#7cf7ff" stroke-width="1"></path></svg>
+        <span>journal-clip &nbsp;/&nbsp; {{faceName}}</span>
+      </div>
+      <button onClick="{{flip}}" style="background: #101018; color: #a7a7bd; border: 1px solid #272739; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; padding: 4px 10px; cursor: pointer;">flip</button>
+    </div>
+
+    <div style="flex: 1; min-height: 0; padding: 12px 14px; display: flex;">
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; transform: scaleX({{scale}}); transform-origin: 50% 50%;">
+
+        <sc-if value="{{front}}" hint-placeholder-val="{{ true }}">
+        <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 11px;">
+
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">V:\ssfs-vault\journal</span>
+            <button style="margin-left: auto; background: #101018; color: #a7a7bd; border: 1px solid #272739; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; padding: 4px 10px; cursor: pointer;">change</button>
+          </div>
+
+          <sc-for list="{{stores}}" as="s" hint-placeholder-count="3">
+          <div style="border: 1px solid #272739; border-left: 2px solid {{s.accent}}; background: #0a0a10; padding: 10px 12px; display: flex; flex-direction: column; gap: 7px;">
+            <div style="display: flex; align-items: baseline; gap: 8px;">
+              <span style="color: #e7e7f2; font-size: 13px;">{{s.name}}</span>
+              <span style="margin-left: auto; color: {{s.accent}}; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 16px;">{{s.big}}</span>
+            </div>
+            <div style="color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px;">{{s.rule}}</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+              <sc-for list="{{s.facts}}" as="f" hint-placeholder-count="4">
+              <span style="border: 1px solid #272739; color: {{f.tone}}; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; padding: 2px 7px;">{{f.text}}</span>
+              </sc-for>
+            </div>
+          </div>
+          </sc-for>
+
+          <div style="border-top: 1px solid #272739; padding-top: 10px; display: flex; flex-direction: column; gap: 7px;">
+            <div style="color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px;">raw audio retention</div>
+            <div style="display: flex; gap: 6px;">
+              <sc-for list="{{retention}}" as="r" hint-placeholder-count="2">
+              <button onClick="{{r.pick}}" style="flex: 1; background: {{r.bg}}; color: {{r.fg}}; border: 1px solid {{r.line}}; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; padding: 7px 10px; cursor: pointer; text-align: left;">
+                <span style="display: block;">{{r.key}}</span>
+                <span style="display: block; color: #6c6c83; margin-top: 2px;">{{r.note}}</span>
+              </button>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="margin-top: auto; display: flex; gap: 8px;">
+            <button style="flex: 1; background: #101018; color: #a7a7bd; border: 1px solid #272739; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; padding: 7px 10px; cursor: pointer;">verify audio</button>
+            <button style="flex: 1; background: #101018; color: #a7a7bd; border: 1px solid #272739; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; padding: 7px 10px; cursor: pointer;">recompute 6</button>
+            <button style="flex: 1; background: #101018; color: #a7a7bd; border: 1px solid #272739; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; padding: 7px 10px; cursor: pointer;">rebuild view</button>
+          </div>
+
+        </div>
+        </sc-if>
+
+        <sc-if value="{{back}}" hint-placeholder-val="{{ true }}">
+        <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 11px;">
+
+          <div style="display: flex; flex-direction: column; gap: 1px; background: #272739; border-top: 1px solid #272739; border-bottom: 1px solid #272739;">
+            <sc-for list="{{models}}" as="m" hint-placeholder-count="3">
+            <div style="display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; gap: 10px; align-items: center; background: #050509; padding: 9px 2px;">
+              <span style="color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px;">{{m.key}}</span>
+              <span style="color: #e7e7f2; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{m.val}}</span>
+              <span style="color: {{m.tone}}; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px;">{{m.state}}</span>
+            </div>
+            </sc-for>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px;">system prompt &#183; global</div>
+            <div style="display: flex; align-items: center; gap: 8px; border: 1px solid #272739; background: #0a0a10; padding: 8px 10px;">
+              <span style="color: #a7a7bd; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">builtin &#183; 8 prompts</span>
+              <button style="margin-left: auto; background: #101018; color: #a7a7bd; border: 1px solid #272739; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; padding: 3px 9px; cursor: pointer;">pick</button>
+            </div>
+          </div>
+
+          <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px;">
+            <div style="color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px;">per&#8209;kind override &#183; cosine still picks the kind</div>
+            <div style="flex: 1; min-height: 0; overflow: auto; border: 1px solid #272739; background: #0a0a10;">
+              <sc-for list="{{kinds}}" as="k" hint-placeholder-count="8">
+              <div style="display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 7px 10px; border-bottom: 1px solid #17172a;">
+                <span style="color: {{k.tone}}; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px;">{{k.id}}</span>
+                <span style="color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{k.src}}</span>
+                <span style="color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px;">{{k.n}}</span>
+              </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 6px;">
+            <sc-for list="{{llm}}" as="l" hint-placeholder-count="2">
+            <button onClick="{{l.pick}}" style="flex: 1; background: {{l.bg}}; color: {{l.fg}}; border: 1px solid {{l.line}}; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; padding: 7px 10px; cursor: pointer;">{{l.key}}</button>
+            </sc-for>
+            <button style="background: #101018; color: #a7a7bd; border: 1px solid #272739; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px; padding: 7px 10px; cursor: pointer;">clear</button>
+          </div>
+
+          <div style="color: #6c6c83; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 11px;">every output here is revisable &#183; nothing on this face is ground truth</div>
+
+        </div>
+        </sc-if>
+
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"startFace":{"editor":"enum","options":["front","back"],"default":"front"}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { back: false, scale: 1, touched: false, keep: 'archive', useLlm: true };
+    this._busy = false;
+    this._step = 0;
+    this.flip = this.flip.bind(this);
+    this.tick = this.tick.bind(this);
+  }
+  shown() {
+    if (this.state.touched) return this.state.back;
+    return (this.props.startFace ?? 'front') === 'back';
+  }
+  scaleAt(step, steps) {
+    const half = steps >> 1;
+    if (step <= 0 || step >= steps) return 1;
+    if (step < half) return Math.max(0.02, 1 - step / half);
+    if (step === half) return 0.02;
+    return Math.max(0.02, (step - half) / half);
+  }
+  flip() {
+    if (this._busy) return;
+    this._busy = true;
+    this._step = 0;
+    this.tick();
+  }
+  tick() {
+    const steps = 8;
+    const s = this._step;
+    if (s === (steps >> 1)) this.setState({ back: !this.shown(), touched: true });
+    this.setState({ scale: this.scaleAt(s, steps) });
+    if (s >= steps) { this._busy = false; this.setState({ scale: 1 }); return; }
+    this._step = s + 1;
+    setTimeout(this.tick, 16);
+  }
+  pillar(on) {
+    return {
+      bg: on ? '#17172a' : '#101018',
+      fg: on ? '#7cf7ff' : '#6c6c83',
+      line: on ? '#7cf7ff' : '#272739'
+    };
+  }
+  renderVals() {
+    const back = this.shown();
+    const keep = this.state.keep;
+    const arch = this.pillar(keep === 'archive');
+    const shred = this.pillar(keep === 'shred');
+    const on = this.pillar(this.state.useLlm);
+    const off = this.pillar(!this.state.useLlm);
+    const overrides = { daily: 'daily.md', technical: 'structure.md' };
+    const counts = { daily: 41, dump: 52, decision: 6, dream: 9, gratitude: 4, technical: 19, mood: 7, plan: 3 };
+    const kinds = ['daily', 'dump', 'decision', 'dream', 'gratitude', 'technical', 'mood', 'plan'].map((id) => ({
+      id: id,
+      tone: overrides[id] ? '#7cf7ff' : '#a7a7bd',
+      src: overrides[id] ? overrides[id] : 'builtin',
+      n: String(counts[id])
+    }));
+    return {
+      back: back,
+      front: !back,
+      scale: this.state.scale,
+      flip: this.flip,
+      faceName: back ? 'controls · prompt-out' : 'controls · storage',
+      stores: [
+        {
+          name: 'raw audio',
+          rule: 'never overwrite',
+          accent: '#7cf7ff',
+          big: '61.4 MB',
+          facts: [
+            { text: '128 clips', tone: '#a7a7bd' },
+            { text: 'intact', tone: '#4CAE7C' },
+            { text: 'read-only on disk', tone: '#6c6c83' }
+          ]
+        },
+        {
+          name: 'transcript / diarization',
+          rule: 'version alongside transcription model',
+          accent: '#9fe9f1',
+          big: '141 v',
+          facts: [
+            { text: '128 takes', tone: '#a7a7bd' },
+            { text: 'whisper:base ×106', tone: '#6c6c83' },
+            { text: 'large-v3 ×9', tone: '#6c6c83' },
+            { text: 'human ×13', tone: '#6c6c83' }
+          ]
+        },
+        {
+          name: 'derived semantics',
+          rule: 'revisable model output, not ground truth',
+          accent: '#e2a24a',
+          big: '6 stale',
+          facts: [
+            { text: '141 revisions', tone: '#a7a7bd' },
+            { text: 'ground_truth false', tone: '#6c6c83' },
+            { text: 'safe to discard', tone: '#6c6c83' }
+          ]
+        }
+      ],
+      retention: [
+        { key: 'archive', note: 'keep the wav · ~32 KB/s', bg: arch.bg, fg: arch.fg, line: arch.line, pick: () => this.setState({ keep: 'archive' }) },
+        { key: 'shred', note: 'text only · sound gone', bg: shred.bg, fg: shred.fg, line: shred.line, pick: () => this.setState({ keep: 'shred' }) }
+      ],
+      models: [
+        { key: 'whisper', val: 'base', state: 'local', tone: '#4CAE7C' },
+        { key: 'embed', val: 'nomic-embed-text', state: 'up', tone: '#4CAE7C' },
+        { key: 'chat', val: 'qwen2.5:7b-instruct', state: 'up', tone: '#4CAE7C' }
+      ],
+      kinds: kinds,
+      llm: [
+        { key: '7B on', bg: on.bg, fg: on.fg, line: on.line, pick: () => this.setState({ useLlm: true }) },
+        { key: '--no-llm', bg: off.bg, fg: off.fg, line: off.line, pick: () => this.setState({ useLlm: false }) }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
